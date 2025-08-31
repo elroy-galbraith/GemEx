@@ -1,0 +1,71 @@
+name: Test Trading Analysis
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  test-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create output directory
+      run: |
+        mkdir -p trading_session
+        
+    - name: Test environment variables
+      run: |
+        echo "Testing environment variables..."
+        if [ -n "$GEMINI_API_KEY" ]; then
+          echo "✅ GEMINI_API_KEY is set"
+        else
+          echo "❌ GEMINI_API_KEY is not set"
+        fi
+        
+        if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+          echo "✅ TELEGRAM_BOT_TOKEN is set"
+        else
+          echo "❌ TELEGRAM_BOT_TOKEN is not set"
+        fi
+        
+        if [ -n "$TELEGRAM_CHAT_ID" ]; then
+          echo "✅ TELEGRAM_CHAT_ID is set"
+        else
+          echo "❌ TELEGRAM_CHAT_ID is not set"
+        fi
+        
+    - name: Run trading analysis (if env vars are set)
+      if: env.GEMINI_API_KEY != '' && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🚀 Running trading analysis..."
+        python market_planner.py
+        
+    - name: Skip analysis (if env vars missing)
+      if: env.GEMINI_API_KEY == '' || env.TELEGRAM_BOT_TOKEN == '' || env.TELEGRAM_CHAT_ID == ''
+      run: |
+        echo "⚠️  Skipping analysis - missing environment variables"
+        echo "Please set all required secrets in repository settings"
+        
+    - name: Upload results (if available)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ github.run_number }}
+        path: trading_session/
+        retention-days: 7

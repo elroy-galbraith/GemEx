@@ -300,3 +300,61 @@ When you're ready to automate with GitHub Actions, add these secrets to your rep
 - `TELEGRAM_CHAT_ID`
 
 The bot will automatically send results after each analysis run.
+
+## 🚀 GitHub Actions Automation Setup
+
+Automate your trading analysis to run daily with GitHub Actions:
+
+### 1. Repository Secrets Setup
+Go to your GitHub repository → Settings → Secrets and variables → Actions, then add:
+
+**Required Secrets:**
+- `GEMINI_API_KEY` - Your Google Gemini API key
+- `TELEGRAM_BOT_TOKEN` - Your Telegram bot token
+- `TELEGRAM_CHAT_ID` - Your Telegram chat ID
+
+### 2. Workflow Configuration
+The workflow (`.github/workflows/daily-trading-analysis.yml`) is already configured to:
+- **Run at 7:00 PM Japan Standard Time (UTC+9) on weekdays only** (Monday-Friday)
+- **Allow manual triggering** via "Run workflow" button
+- **Install all dependencies** from requirements.txt
+- **Execute the analysis** with proper environment variables
+- **Send results to Telegram** automatically
+- **Save artifacts** for 30 days
+- **Commit results** back to the repository (optional)
+
+### 3. Customize Schedule
+Edit the cron schedule in `.github/workflows/daily-trading-analysis.yml`:
+```yaml
+- cron: '0 8 * * *'  # Daily at 8:00 AM UTC
+```
+
+**Current schedule:**
+- `'0 10 * * 1-5'` - Weekdays at 7:00 PM JST (10:00 AM UTC)
+
+**Other schedule examples:**
+- `'0 8 * * *'` - Daily at 8:00 AM UTC
+- `'0 9 * * 1-5'` - Weekdays at 9:00 AM UTC
+- `'0 */6 * * *'` - Every 6 hours
+- `'0 8,20 * * *'` - Twice daily at 8:00 AM and 8:00 PM UTC
+
+### 4. Manual Execution
+Trigger the workflow manually anytime:
+1. Go to Actions tab in your repository
+2. Click "Daily Trading Analysis"
+3. Click "Run workflow" button
+4. Select branch and click "Run workflow"
+
+### 5. Monitor Execution
+- **Actions tab** shows workflow runs and logs
+- **Telegram notifications** confirm successful execution
+- **Artifacts** store trading session files
+- **Repository commits** track analysis history
+
+### 6. Troubleshooting
+- **Check Actions logs** for detailed error messages
+- **Verify secrets** are correctly set
+- **Test locally** before pushing to GitHub
+- **Check Telegram bot** is active and accessible
+
+The workflow will automatically run your analysis daily and deliver results directly to your Telegram, making it perfect for automated trading analysis!
