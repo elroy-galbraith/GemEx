@@ -1,7 +1,7 @@
 # GemEx - AI-Powered Forex Trading Analysis System
 
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 GemEx is an advanced, AI-powered forex trading analysis system that combines quantitative market data with large language model (LLM) intelligence to generate comprehensive trading strategies. The system operates under the codename "Viper" and provides institutional-grade market analysis for EURUSD trading.
 
@@ -66,6 +66,20 @@ GemEx/
 - **Economic Calendar**: High and medium-impact EUR/USD events
 - **News Filtering**: Automated relevance scoring for trading impact
 - **Event Timing**: UTC-based scheduling for global market coordination
+
+## 📄 License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.
+
+### ⚠️ Important Disclaimers
+
+**EDUCATIONAL PURPOSE ONLY**: This software is provided STRICTLY FOR EDUCATIONAL AND RESEARCH PURPOSES ONLY. It is NOT intended for actual trading, investment decisions, or financial advice.
+
+**NO FINANCIAL ADVICE**: This software does not constitute financial advice, investment recommendations, or trading signals. Any analysis, predictions, or outputs generated should NOT be used to make actual trading decisions.
+
+**USE AT YOUR OWN RISK**: By using this software, you acknowledge that you understand the risks involved and agree to use it entirely at your own risk. The authors and contributors shall not be liable for any losses, damages, or financial harm.
+
+**For complete disclaimers and legal information, please read the full [LICENSE](LICENSE) file.**
 
 ## 🛠️ Installation & Setup
 
