@@ -54,6 +54,18 @@ def send_telegram_message(message, parse_mode="Markdown"):
         print("⚠️  Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
         return False
     
+    # Split long messages into chunks (Telegram limit is 4096 characters)
+    max_length = 4000  # Leave some buffer for safety
+    
+    if len(message) <= max_length:
+        # Single message - send normally
+        return _send_single_message(message, parse_mode)
+    else:
+        # Split into multiple messages
+        return _send_split_messages(message, parse_mode, max_length)
+
+def _send_single_message(message, parse_mode):
+    """Send a single message to Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -69,6 +81,42 @@ def send_telegram_message(message, parse_mode="Markdown"):
     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to send Telegram message: {e}")
         return False
+
+def _send_split_messages(message, parse_mode, max_length):
+    """Split and send long messages in chunks."""
+    print(f"📤 Splitting long message into chunks (total length: {len(message)} chars)")
+    
+    # Split by lines to avoid breaking in the middle of content
+    lines = message.split('\n')
+    chunks = []
+    current_chunk = ""
+    
+    for line in lines:
+        # If adding this line would exceed limit, start new chunk
+        if len(current_chunk) + len(line) + 1 > max_length:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line
+        else:
+            current_chunk += '\n' + line if current_chunk else line
+    
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    # Send all chunks
+    success_count = 0
+    for i, chunk in enumerate(chunks, 1):
+        chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
+        full_chunk = chunk_header + chunk
+        
+        if _send_single_message(full_chunk, parse_mode):
+            success_count += 1
+        else:
+            print(f"❌ Failed to send chunk {i}")
+    
+    print(f"✅ Sent {success_count}/{len(chunks)} message chunks successfully")
+    return success_count == len(chunks)
 
 def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
     """Send a summary of the trading analysis to Telegram."""
@@ -118,12 +166,15 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         
         message += f"""
 
+📋 *Complete Trade Plan*
+```
+{trade_plan}
+```
+
 📁 *Files Generated*
 • Data Packet: `viper_packet.json`
 • Trade Plan: `trade_plan.md`
 • Review Scores: `review_scores.json`
-
-🔗 Check your local files for full analysis details.
 """
         
         return send_telegram_message(message)
