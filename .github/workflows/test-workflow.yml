@@ -28,6 +28,17 @@ jobs:
     - name: Test environment variables
       run: |
         echo "Testing environment variables..."
+        echo "Note: Secrets are only available in steps that explicitly use them"
+        echo "These will be available in the next step when we run the analysis"
+        
+    - name: Run trading analysis
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🚀 Running trading analysis..."
+        echo "Testing environment variables..."
         if [ -n "$GEMINI_API_KEY" ]; then
           echo "✅ GEMINI_API_KEY is set"
         else
@@ -46,21 +57,10 @@ jobs:
           echo "❌ TELEGRAM_CHAT_ID is not set"
         fi
         
-    - name: Run trading analysis (if env vars are set)
-      if: env.GEMINI_API_KEY != '' && env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        echo "🚀 Running trading analysis..."
+        echo "Starting analysis..."
         python market_planner.py
         
-    - name: Skip analysis (if env vars missing)
-      if: env.GEMINI_API_KEY == '' || env.TELEGRAM_BOT_TOKEN == '' || env.TELEGRAM_CHAT_ID == ''
-      run: |
-        echo "⚠️  Skipping analysis - missing environment variables"
-        echo "Please set all required secrets in repository settings"
+
         
     - name: Upload results (if available)
       if: always()
