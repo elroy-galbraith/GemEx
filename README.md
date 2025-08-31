@@ -256,3 +256,47 @@ For issues, questions, or contributions:
 **Built with ❤️ for the trading community**
 
 *"Viper" - Precision trading through AI-powered analysis*
+
+## Telegram Integration Setup
+
+To receive trading analysis results via Telegram messages, follow these steps:
+
+### 1. Create a Telegram Bot
+1. Open Telegram and search for `@BotFather`
+2. Send `/newbot` command
+3. Choose a name for your bot (e.g., "GemEx Trading Bot")
+4. Choose a username (must end with 'bot', e.g., "gemex_trading_bot")
+5. Save the bot token provided by BotFather
+
+### 2. Get Your Chat ID
+1. Start a chat with your bot by clicking the bot link
+2. Send any message to the bot
+3. Visit: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
+4. Look for the `"chat":{"id":123456789}` in the response
+5. Save this chat ID number
+
+### 3. Set Environment Variables
+```bash
+export TELEGRAM_BOT_TOKEN="your_bot_token_here"
+export TELEGRAM_CHAT_ID="your_chat_id_here"
+```
+
+Or add to your `.env` file:
+```
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+```
+
+### 4. Test the Integration
+Run your script and you should receive a formatted message with:
+- Market snapshot (EURUSD price, trends)
+- Analysis scores (Plan Quality & Confidence)
+- Trading decision (GO/WAIT/NO-GO)
+- File generation confirmation
+
+### 5. GitHub Actions Setup (Future)
+When you're ready to automate with GitHub Actions, add these secrets to your repository:
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+
+The bot will automatically send results after each analysis run.

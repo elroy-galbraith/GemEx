@@ -10,6 +10,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 import google.generativeai as genai
 from dotenv import load_dotenv
+import requests
 load_dotenv()
 
 # --- 0. MASTER CONFIGURATION ---
@@ -22,6 +23,10 @@ if not GEMINI_API_KEY:
     raise ValueError("GEMINI_API_KEY not found. Please set it as an environment variable.")
 genai.configure(api_key=GEMINI_API_KEY)
 MODEL_NAME = "gemini-1.5-pro-latest"
+
+# --- Telegram Configuration ---
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # --- File Path Setup ---
 OUTPUT_DIR = Path("trading_session")
@@ -40,6 +45,92 @@ SYMBOLS = {
     "EURJPY": "EURJPY=X",
     "SPX500": "^GSPC"
 }
+
+# --- Telegram Functions ---
+
+def send_telegram_message(message, parse_mode="Markdown"):
+    """Send a message to Telegram via bot API."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("⚠️  Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID environment variables.")
+        return False
+    
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    data = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": parse_mode
+    }
+    
+    try:
+        response = requests.post(url, data=data, timeout=10)
+        response.raise_for_status()
+        print("✅ Telegram message sent successfully")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Failed to send Telegram message: {e}")
+        return False
+
+def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
+    """Send a summary of the trading analysis to Telegram."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    
+    try:
+        # Read the trade plan
+        with open(trade_plan_path, 'r') as f:
+            trade_plan = f.read()
+        
+        # Read the review scores
+        with open(review_scores_path, 'r') as f:
+            review_scores = json.load(f)
+        
+        # Extract key information
+        current_price = data_packet["marketSnapshot"]["currentPrice"]
+        current_time = data_packet["marketSnapshot"]["currentTimeUTC"]
+        daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
+        h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
+        
+        quality_score = review_scores['planQualityScore']['score']
+        confidence_score = review_scores['confidenceScore']['score']
+        
+        # Create summary message
+        message = f"""🚀 *GemEx Trading Analysis Complete*
+
+📊 *Market Snapshot*
+• EURUSD: {current_price}
+• Daily Trend: {daily_trend}
+• H4 Trend: {h4_trend}
+• Time: {current_time[:19]} UTC
+
+📈 *Analysis Scores*
+• Plan Quality: {quality_score}/10
+• Confidence: {confidence_score}/10
+
+🎯 *Decision*
+"""
+        
+        if quality_score >= 6 and confidence_score >= 6:
+            message += "🟢 *GO FOR EXECUTION* - Plan is solid and conviction is high"
+        elif quality_score >= 6 and confidence_score < 6:
+            message += "🟡 *WAIT AND SEE* - Plan is solid, but market feel is off"
+        else:
+            message += "🔴 *NO-GO* - DISCARD PLAN - Quality or Confidence too low"
+        
+        message += f"""
+
+📁 *Files Generated*
+• Data Packet: `viper_packet.json`
+• Trade Plan: `trade_plan.md`
+• Review Scores: `review_scores.json`
+
+🔗 Check your local files for full analysis details.
+"""
+        
+        return send_telegram_message(message)
+        
+    except Exception as e:
+        print(f"❌ Error creating Telegram summary: {e}")
+        return False
 
 
 # --- 1. DATA ENGINEERING MODULE ---
@@ -414,5 +505,6 @@ if __name__ == "__main__":
     # STAGE 2 & 3: Run the Planner and Reviewer pipeline
     if data_packet:
         run_viper_coil(data_packet)
+        send_trading_summary(data_packet, PLAN_OUTPUT_PATH, REVIEW_OUTPUT_PATH)
     else:
         print("❌ Could not generate data packet. Halting execution.")
