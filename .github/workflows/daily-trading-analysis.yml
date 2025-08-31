@@ -43,11 +43,4 @@ jobs:
         path: trading_session/
         retention-days: 30
         
-    - name: Commit and push results (optional)
-      if: always()
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add trading_session/
-        git commit -m "Update trading analysis results" || echo "No changes to commit"
-        git push || echo "Push failed or no changes"
+
