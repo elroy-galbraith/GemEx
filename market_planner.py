@@ -49,6 +49,19 @@ SYMBOLS = {
 
 # --- Telegram Functions ---
 
+def escape_markdown(text):
+    """Escape special Markdown characters to prevent parsing errors."""
+    if not text:
+        return text
+    
+    # Characters that need escaping in Markdown
+    escape_chars = ['*', '_', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
+
 def send_telegram_message(message, parse_mode="Markdown"):
     """Send a message to Telegram via bot API."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
@@ -68,6 +81,8 @@ def send_telegram_message(message, parse_mode="Markdown"):
 def _send_single_message(message, parse_mode):
     """Send a single message to Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    
+    # If Markdown parsing fails, fall back to plain text
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
@@ -80,8 +95,24 @@ def _send_single_message(message, parse_mode):
         print("✅ Telegram message sent successfully")
         return True
     except requests.exceptions.RequestException as e:
-        print(f"❌ Failed to send Telegram message: {e}")
-        return False
+        if parse_mode == "Markdown":
+            print(f"❌ Markdown parsing failed, retrying with plain text: {e}")
+            # Retry without parse_mode
+            data_plain = {
+                "chat_id": TELEGRAM_CHAT_ID,
+                "text": message
+            }
+            try:
+                response = requests.post(url, data=data_plain, timeout=10)
+                response.raise_for_status()
+                print("✅ Telegram message sent successfully (plain text)")
+                return True
+            except requests.exceptions.RequestException as e2:
+                print(f"❌ Failed to send Telegram message (plain text): {e2}")
+                return False
+        else:
+            print(f"❌ Failed to send Telegram message: {e}")
+            return False
 
 def _send_split_messages(message, parse_mode, max_length):
     """Split and send long messages in chunks."""
@@ -142,7 +173,7 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         quality_score = review_scores['planQualityScore']['score']
         confidence_score = review_scores['confidenceScore']['score']
         
-        # Create summary message
+        # Create summary message with safer formatting
         message = f"""🚀 *GemEx Trading Analysis Complete*
 
 📊 *Market Snapshot*
@@ -171,11 +202,6 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
 ```
 {trade_plan}
 ```
-
-📁 *Files Generated*
-• Data Packet: `viper_packet.json`
-• Trade Plan: `trade_plan.md`
-• Review Scores: `review_scores.json`
 """
         
         return send_telegram_message(message)
