@@ -291,7 +291,10 @@ def get_intermarket_analysis(symbols_dict):
     return analysis
 
 def get_economic_calendar():
-    """Scrapes Forex Factory for relevant economic events."""
+    """
+    Correctly scrapes the Forex Factory economic calendar by handling
+    different row types and propagating the date correctly.
+    """
     print("Fetching economic calendar...")
     try:
         scraper = cloudscraper.create_scraper()
@@ -301,40 +304,93 @@ def get_economic_calendar():
         soup = BeautifulSoup(response.text, 'html.parser')
         table = soup.find('table', class_='calendar__table')
         
-        events = []
+        if not table:
+            print("Could not find the calendar table.")
+            return []
+
+        calendar_data = []
+        # Find all rows, including day-breakers and event rows
+        rows = table.find_all('tr', class_='calendar__row')
+
+        # This variable will hold the date as we iterate through the rows
         current_date = "Unknown"
-        
+
         # Use Linux-friendly date formatting (GitHub Actions runs on Linux by default)
-        today_str = datetime.now(timezone.utc).strftime('%a %b %-d')
-        
+        today_str = datetime.now(timezone.utc).strftime('%a %b %-d').lstrip()
         print(f"Filtering for today's date: '{today_str}'")
 
-        for row in table.find_all('tr', class_='calendar__row'):
+        for row in rows:
+            # --- 1. Check if the row is a "day-breaker" ---
+            # These rows only contain the date (e.g., "Tue Aug 12")
             if 'calendar__row--day-breaker' in row.get('class', []):
-                current_date = row.find('td').text.strip()
-                continue
-            
-            if today_str not in current_date:
+                date_cell = row.find('td', class_='calendar__cell')
+                if date_cell:
+                    # Update the current date and skip to the next row
+                    current_date = date_cell.text.strip()
                 continue
 
+            # --- 2. If it's not a day-breaker, try to parse it as an event row ---
+            # We check for a currency cell as a reliable sign of an event row
             currency_cell = row.find('td', class_='calendar__currency')
-            if not currency_cell or currency_cell.text.strip() not in ['EUR', 'USD']:
+            if not currency_cell:
+                continue # Skip rows that are not events (e.g., empty day rows)
+
+            # Only process events for today and for EUR/USD currencies
+            if current_date.strip() != today_str or currency_cell.text.strip() not in ['EUR', 'USD']:
                 continue
 
-            impact_span = row.find('span', title=lambda t: t and "Impact" in t)
-            if not impact_span or any(x in impact_span.get('title', '') for x in ['Holiday', 'Low']):
+            # --- 3. Extract data from the event row safely ---
+            # Using .find() and then checking existence avoids errors
+            time_cell = row.find('td', class_='calendar__time')
+            impact_cell = row.find('td', class_='calendar__impact')
+            event_cell = row.find('td', class_='calendar__event')
+            forecast_cell = row.find('td', class_='calendar__forecast')
+            previous_cell = row.find('td', class_='calendar__previous')
+
+            # Safely get text, providing a default empty string if a cell is missing
+            time = time_cell.text.strip() if time_cell else ''
+            currency = currency_cell.text.strip()
+
+            # Improved impact extraction
+            impact = 'No Impact'  # Default value
+            if impact_cell:
+                # Look specifically for span with class 'icon' and title attribute
+                impact_span = impact_cell.find('span', class_='icon')
+                if impact_span and impact_span.get('title'):
+                    impact = impact_span['title']
+                else:
+                    # Fallback: look for any span with title attribute
+                    title_spans = impact_cell.find_all('span', title=True)
+                    if title_spans:
+                        impact = title_spans[0]['title']
+                    else:
+                        # Last resort: check for class-based impact indication
+                        if impact_cell.find('span', class_=lambda x: x and 'ff-impact-red' in str(x)):
+                            impact = 'High Impact Expected'
+                        elif impact_cell.find('span', class_=lambda x: x and 'ff-impact-ora' in str(x)):
+                            impact = 'Medium Impact Expected'
+                        elif impact_cell.find('span', class_=lambda x: x and 'ff-impact-yel' in str(x)):
+                            impact = 'Low Impact Expected'
+
+            # Only include high impact events
+            if impact != 'High Impact Expected':
                 continue
 
-            events.append({
-                "eventName": row.find('td', class_='calendar__event').text.strip(),
-                "timeUTC": row.find('td', class_='calendar__time').text.strip(),
-                "impact": "High" if "High" in impact_span['title'] else "Medium",
-                "forecast": row.find('td', class_='calendar__forecast').text.strip(),
-                "previous": row.find('td', class_='calendar__previous').text.strip(),
+            event = event_cell.text.strip() if event_cell else 'N/A'
+            forecast = forecast_cell.text.strip() if forecast_cell else ''
+            previous = previous_cell.text.strip() if previous_cell else ''
+
+            calendar_data.append({
+                "eventName": event,
+                "timeUTC": time,
+                "impact": "High",
+                "forecast": forecast,
+                "previous": previous,
                 "potentialDeviationScenario": "Awaiting LLM analysis."
             })
-        print(f"Found {len(events)} relevant events for today.")
-        return events
+
+        print(f"Found {len(calendar_data)} high impact events for today.")
+        return calendar_data
     except Exception as e:
         print(f"Could not fetch economic calendar: {e}")
         return []
