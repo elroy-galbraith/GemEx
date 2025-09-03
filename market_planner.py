@@ -11,7 +11,6 @@ from bs4 import BeautifulSoup
 import google.generativeai as genai
 from dotenv import load_dotenv
 import requests
-import platform
 from prompts import PLANNER_SYSTEM_PROMPT, REVIEWER_SYSTEM_PROMPT
 load_dotenv()
 
@@ -305,11 +304,8 @@ def get_economic_calendar():
         events = []
         current_date = "Unknown"
         
-        # Use platform-specific date formatting to avoid leading zeros/spaces
-        if platform.system() == "Windows":
-            today_str = datetime.now(timezone.utc).strftime('%a %b %#d')  # Windows
-        else:
-            today_str = datetime.now(timezone.utc).strftime('%a %b %-d')  # Linux/Mac
+        # Use Linux-friendly date formatting (GitHub Actions runs on Linux by default)
+        today_str = datetime.now(timezone.utc).strftime('%a %b %-d')
         
         print(f"Filtering for today's date: '{today_str}'")
 

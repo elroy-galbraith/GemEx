@@ -28,6 +28,12 @@ jobs:
       run: |
         mkdir -p trading_session
         
+    - name: Test date filtering logic
+      run: |
+        echo "🧪 Running date filtering tests..."
+        python -m unittest test_date_filtering.py -v
+        python test_integration.py
+        
     - name: Run trading analysis
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
