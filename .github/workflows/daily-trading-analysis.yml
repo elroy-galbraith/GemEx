@@ -54,6 +54,11 @@ jobs:
         echo "🧪 Testing persistence mechanism..."
         python test_persistence_standalone.py
         
+    - name: Test JSON parsing
+      run: |
+        echo "🧪 Testing JSON parsing..."
+        python test_json_parsing.py
+        
     - name: Run trading analysis
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

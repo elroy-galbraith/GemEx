@@ -199,6 +199,8 @@ This is your **subjective**, experience-based "gut feel." Grade it on a scale of
 1.  **BE CRITICAL:** Do not be generous. Your default stance is skeptical. A score of 9 or 10 must be exceptionally rare and truly deserved.
 2.  **NO CONVERSATION:** Do not provide any conversational text, introductions, or summaries. Your response must **only** be the JSON object.
 3.  **STRICT JSON OUTPUT:** The output must be a single, valid JSON object with no leading or trailing text.
+4.  **NO MARKDOWN:** Do not wrap the JSON in ```json``` code blocks. Output raw JSON only.
+5.  **VALIDATE YOUR OUTPUT:** Ensure the JSON is properly formatted and contains all required fields.
 
 **JSON Schema:**
 

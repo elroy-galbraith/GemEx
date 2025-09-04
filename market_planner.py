@@ -806,6 +806,33 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
         print(f"An error occurred during the LLM call: {e}")
         return ""
 
+def clean_json_output(raw_output: str) -> str:
+    """Clean and extract JSON from LLM output."""
+    if not raw_output:
+        return ""
+    
+    # Remove markdown code blocks
+    cleaned = raw_output.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    
+    # Remove any leading/trailing whitespace
+    cleaned = cleaned.strip()
+    
+    # Try to find JSON object boundaries
+    start_idx = cleaned.find('{')
+    end_idx = cleaned.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        cleaned = cleaned[start_idx:end_idx + 1]
+    
+    return cleaned
+
 def run_viper_coil(viper_packet):
     """Executes the Planner -> Reviewer LLM pipeline."""
     
@@ -844,10 +871,20 @@ def run_viper_coil(viper_packet):
 
     # --- Step 4: Parse Review and Make Final Decision ---
     try:
-        if review_output_raw.startswith("```json"):
-            review_output_raw = review_output_raw[7:-3].strip()
-        review_scores = json.loads(review_output_raw)
+        # Clean up the review output using the dedicated function
+        cleaned_output = clean_json_output(review_output_raw)
         
+        if not cleaned_output:
+            raise ValueError("Empty or invalid output from reviewer")
+        
+        # Try to parse the JSON
+        review_scores = json.loads(cleaned_output)
+        
+        # Validate the structure
+        if 'planQualityScore' not in review_scores or 'confidenceScore' not in review_scores:
+            raise KeyError("Missing required score fields")
+        
+        # Save the scores
         with open(REVIEW_OUTPUT_PATH, 'w') as f:
             json.dump(review_scores, f, indent=2)
         print(f"✅ Scores parsed and saved to: {REVIEW_OUTPUT_PATH.name}")
@@ -874,6 +911,34 @@ def run_viper_coil(viper_packet):
         print(f"❌ ERROR: Reviewer returned invalid JSON or unexpected structure: {e}")
         print("--- Raw Reviewer Output ---")
         print(review_output_raw)
+        print("--- End Raw Output ---")
+        
+        # Create fallback review scores to prevent file not found errors
+        fallback_scores = {
+            "planQualityScore": {
+                "score": 1,
+                "justification": "Reviewer failed to provide valid analysis - fallback scores applied"
+            },
+            "confidenceScore": {
+                "score": 1,
+                "justification": "Reviewer failed to provide valid analysis - fallback scores applied"
+            },
+            "error": {
+                "type": str(type(e).__name__),
+                "message": str(e),
+                "raw_output": review_output_raw
+            }
+        }
+        
+        # Save fallback scores
+        with open(REVIEW_OUTPUT_PATH, 'w') as f:
+            json.dump(fallback_scores, f, indent=2)
+        print(f"⚠️  Fallback scores saved to: {REVIEW_OUTPUT_PATH.name}")
+        
+        # Show fallback decision
+        print("\n--- FALLBACK DECISION ---")
+        print("🔴 DECISION: NO-GO. DISCARD PLAN. Reviewer analysis failed.")
+        print("-" * 50)
 
 
 # --- 3. MAIN EXECUTION BLOCK ---
