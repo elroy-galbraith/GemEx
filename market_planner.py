@@ -5,6 +5,7 @@ from scipy.signal import find_peaks
 from datetime import datetime, timezone
 import os
 import json
+import html
 from pathlib import Path
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -144,7 +145,10 @@ def _send_split_messages(message, parse_mode, max_length):
     # Send all chunks
     success_count = 0
     for i, chunk in enumerate(chunks, 1):
-        chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
+        if parse_mode == "HTML":
+            chunk_header = f"<b>📄 Part {i} of {len(chunks)}</b>\n\n"
+        else:
+            chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
         full_chunk = chunk_header + chunk
         
         if _send_single_message(full_chunk, parse_mode):
@@ -178,38 +182,39 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         quality_score = review_scores['planQualityScore']['score']
         confidence_score = review_scores['confidenceScore']['score']
         
-        # Create summary message with safer formatting
-        message = f"""🚀 *GemEx Trading Analysis Complete*
+        # Create summary message using HTML parse mode with proper escaping
+        safe_plan = html.escape(trade_plan)
+        safe_daily_trend = html.escape(str(daily_trend))
+        safe_h4_trend = html.escape(str(h4_trend))
+        safe_time = html.escape(str(current_time[:19]))
+        safe_price = html.escape(str(current_price))
 
-📊 *Market Snapshot*
-• EURUSD: {current_price}
-• Daily Trend: {daily_trend}
-• H4 Trend: {h4_trend}
-• Time: {current_time[:19]} UTC
+        message = (
+            f"<b>🚀 GemEx Trading Analysis Complete</b>\n\n"
+            f"<b>📊 Market Snapshot</b>\n"
+            f"• EURUSD: {safe_price}\n"
+            f"• Daily Trend: {safe_daily_trend}\n"
+            f"• H4 Trend: {safe_h4_trend}\n"
+            f"• Time: {safe_time} UTC\n\n"
+            f"<b>📈 Analysis Scores</b>\n"
+            f"• Plan Quality: {quality_score}/10\n"
+            f"• Confidence: {confidence_score}/10\n\n"
+            f"<b>🎯 Decision</b>\n"
+        )
 
-📈 *Analysis Scores*
-• Plan Quality: {quality_score}/10
-• Confidence: {confidence_score}/10
-
-🎯 *Decision*
-"""
-        
         if quality_score >= 6 and confidence_score >= 6:
-            message += "🟢 *GO FOR EXECUTION* - Plan is solid and conviction is high"
+            message += "🟢 <b>GO FOR EXECUTION</b> - Plan is solid and conviction is high"
         elif quality_score >= 6 and confidence_score < 6:
-            message += "🟡 *WAIT AND SEE* - Plan is solid, but market feel is off"
+            message += "🟡 <b>WAIT AND SEE</b> - Plan is solid, but market feel is off"
         else:
-            message += "🔴 *NO-GO* - DISCARD PLAN - Quality or Confidence too low"
-        
-        message += f"""
+            message += "🔴 <b>NO-GO</b> - DISCARD PLAN - Quality or Confidence too low"
 
-📋 *Complete Trade Plan*
-```
-{trade_plan}
-```
-"""
-        
-        return send_telegram_message(message)
+        message += (
+            f"\n\n<b>📋 Complete Trade Plan</b>\n"
+            f"<pre><code>{safe_plan}</code></pre>"
+        )
+
+        return send_telegram_message(message, parse_mode="HTML")
         
     except Exception as e:
         print(f"❌ Error creating Telegram summary: {e}")
