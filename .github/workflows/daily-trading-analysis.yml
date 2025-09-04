@@ -10,6 +10,11 @@ jobs:
   trading-analysis:
     runs-on: ubuntu-latest
     
+    # Add permissions for downloading artifacts via API
+    permissions:
+      contents: read
+      actions: read
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -28,11 +33,26 @@ jobs:
       run: |
         mkdir -p trading_session
         
+    - name: Download previous session artifacts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "📥 Attempting to download previous session data..."
+        # The Python script will handle downloading previous artifacts via GitHub API
+        # This step ensures the environment is set up correctly
+        
     - name: Test date filtering logic
       run: |
         echo "🧪 Running date filtering tests..."
         python -m unittest test_date_filtering.py -v
         python test_integration.py
+        
+    - name: Test persistence mechanism
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🧪 Testing persistence mechanism..."
+        python test_persistence.py
         
     - name: Run trading analysis
       env:

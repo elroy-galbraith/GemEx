@@ -421,9 +421,301 @@ def get_economic_calendar():
         print(f"Could not fetch economic calendar: {e}")
         return []
 
+def download_previous_session_artifacts():
+    """Download previous session data from GitHub Actions artifacts or remote storage."""
+    print("Attempting to download previous session data...")
+    
+    # Check if we're running in GitHub Actions
+    if os.environ.get('GITHUB_ACTIONS'):
+        print("Running in GitHub Actions - attempting to download previous artifacts...")
+        return download_from_github_artifacts()
+    else:
+        print("Running locally - checking local files...")
+        return load_local_previous_session()
+
+def download_from_github_artifacts():
+    """Download previous session data from GitHub Actions artifacts."""
+    try:
+        import requests
+        import zipfile
+        import tempfile
+        
+        # Get GitHub token and repository info
+        github_token = os.environ.get('GITHUB_TOKEN')
+        if not github_token:
+            print("Warning: No GITHUB_TOKEN found. Cannot download previous artifacts.")
+            return None
+            
+        # Get repository info
+        github_repo = os.environ.get('GITHUB_REPOSITORY')
+        if not github_repo:
+            print("Warning: No GITHUB_REPOSITORY found.")
+            return None
+        
+        # Get yesterday's date
+        from datetime import timedelta
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+        
+        # Try to find recent artifacts (last 7 days)
+        headers = {'Authorization': f'token {github_token}'}
+        artifacts_url = f"https://api.github.com/repos/{github_repo}/actions/artifacts"
+        
+        response = requests.get(artifacts_url, headers=headers)
+        if response.status_code != 200:
+            print(f"Warning: Could not fetch artifacts list: {response.status_code}")
+            if response.status_code == 403:
+                print("This might be due to insufficient permissions. The GITHUB_TOKEN may not have access to artifacts.")
+            return None
+            
+        artifacts = response.json().get('artifacts', [])
+        
+        # Find the most recent trading session artifact
+        trading_artifacts = [a for a in artifacts if a['name'].startswith('trading-session-')]
+        if not trading_artifacts:
+            print("No previous trading session artifacts found.")
+            return None
+            
+        # Get the most recent artifact
+        latest_artifact = max(trading_artifacts, key=lambda x: x['created_at'])
+        print(f"Found previous artifact: {latest_artifact['name']}")
+        
+        # Download the artifact
+        download_url = latest_artifact['archive_download_url']
+        download_response = requests.get(download_url, headers=headers)
+        
+        if download_response.status_code != 200:
+            print(f"Warning: Could not download artifact: {download_response.status_code}")
+            return None
+        
+        # Extract the zip file
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+            tmp_file.write(download_response.content)
+            tmp_file_path = tmp_file.name
+        
+        with tempfile.TemporaryDirectory() as extract_dir:
+            with zipfile.ZipFile(tmp_file_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # Look for yesterday's session data
+            yesterday_dir = Path(extract_dir) / "trading_session" / yesterday
+            if yesterday_dir.exists():
+                return load_session_data_from_path(yesterday_dir)
+            else:
+                # If yesterday's data isn't available, try to find the most recent session
+                session_dirs = list((Path(extract_dir) / "trading_session").glob("20*"))
+                if session_dirs:
+                    latest_session = max(session_dirs, key=lambda x: x.name)
+                    print(f"Using most recent session data: {latest_session.name}")
+                    return load_session_data_from_path(latest_session)
+        
+        # Clean up
+        os.unlink(tmp_file_path)
+        
+    except Exception as e:
+        print(f"Warning: Could not download previous artifacts: {e}")
+        return None
+
+def load_local_previous_session():
+    """Load previous session data from local files."""
+    from datetime import timedelta
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+    yesterday_dir = OUTPUT_DIR / yesterday
+    
+    if yesterday_dir.exists():
+        return load_session_data_from_path(yesterday_dir)
+    return None
+
+def load_session_data_from_path(session_path):
+    """Load session data from a specific path."""
+    try:
+        previous_context = {
+            "previousSessionDate": session_path.name,
+            "previousPlanExists": True,
+            "previousMarketSnapshot": None,
+            "previousKeyLevels": None,
+            "previousPlanOutcome": None,
+            "previousPlanContent": None
+        }
+        
+        # Load previous viper packet
+        prev_packet_path = session_path / "viper_packet.json"
+        if prev_packet_path.exists():
+            with open(prev_packet_path, 'r') as f:
+                prev_packet = json.load(f)
+            
+            previous_context["previousMarketSnapshot"] = prev_packet.get("marketSnapshot")
+            previous_context["previousKeyLevels"] = {
+                "support": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keySupportLevels", []),
+                "resistance": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keyResistanceLevels", [])
+            }
+        
+        # Load previous trade plan
+        prev_plan_path = session_path / "trade_plan.md"
+        if prev_plan_path.exists():
+            with open(prev_plan_path, 'r') as f:
+                previous_context["previousPlanContent"] = f.read()
+        
+        # Load previous review scores
+        prev_review_path = session_path / "review_scores.json"
+        if prev_review_path.exists():
+            with open(prev_review_path, 'r') as f:
+                previous_context["previousPlanOutcome"] = json.load(f)
+        
+        print(f"✅ Successfully loaded previous session data from {session_path.name}")
+        return previous_context
+        
+    except Exception as e:
+        print(f"Warning: Could not load session data from {session_path}: {e}")
+        return None
+
+def create_fallback_previous_context():
+    """Create a fallback context when no previous session data is available."""
+    from datetime import timedelta
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+    
+    return {
+        "previousSessionDate": yesterday,
+        "previousPlanExists": False,
+        "previousMarketSnapshot": None,
+        "previousKeyLevels": None,
+        "previousPlanOutcome": None,
+        "marketEvolution": None,
+        "fallbackMode": True
+    }
+
+def get_previous_session_analysis():
+    """Analyzes the previous trading session to provide context for current analysis."""
+    print("Analyzing previous session context...")
+    
+    # Try to get previous session data
+    previous_context = download_previous_session_artifacts()
+    
+    if previous_context is None:
+        # Fallback: create empty context
+        previous_context = create_fallback_previous_context()
+        print("⚠️  No previous session data available - starting fresh analysis")
+        print("💡 This is normal for the first run or when no recent artifacts exist")
+    
+    return previous_context
+
+def analyze_market_thesis_evolution(previous_context):
+    """Analyzes how the market thesis has evolved from previous sessions."""
+    if not previous_context.get("previousPlanExists"):
+        return {"thesisEvolution": "No previous session data available"}
+    
+    thesis_evolution = {
+        "previousThesis": None,
+        "thesisContinuity": None,
+        "thesisModification": None,
+        "invalidationRisk": None
+    }
+    
+    try:
+        # Extract previous thesis from previous plan content
+        if previous_context.get("previousPlanContent"):
+            prev_plan = previous_context["previousPlanContent"]
+            
+            # Look for thesis indicators in the previous plan
+            if "Overarching Bias:" in prev_plan:
+                # Extract the bias from previous plan
+                lines = prev_plan.split('\n')
+                for i, line in enumerate(lines):
+                    if "Overarching Bias:" in line:
+                        thesis_evolution["previousThesis"] = line.split("Overarching Bias:")[-1].strip()
+                        break
+            
+            # Analyze thesis continuity
+            if "Bullish" in thesis_evolution.get("previousThesis", ""):
+                thesis_evolution["thesisContinuity"] = "Bullish bias from previous session"
+            elif "Bearish" in thesis_evolution.get("previousThesis", ""):
+                thesis_evolution["thesisContinuity"] = "Bearish bias from previous session"
+            else:
+                thesis_evolution["thesisContinuity"] = "Neutral/Range-bound bias from previous session"
+        
+        # Check if previous plan had high quality scores (indicating strong thesis)
+        if previous_context.get("previousPlanOutcome"):
+            prev_scores = previous_context["previousPlanOutcome"]
+            quality_score = prev_scores.get("planQualityScore", {}).get("score", 0)
+            confidence_score = prev_scores.get("confidenceScore", {}).get("score", 0)
+            
+            if quality_score >= 7 and confidence_score >= 7:
+                thesis_evolution["thesisModification"] = "Previous thesis was strong - consider continuation"
+            elif quality_score < 5 or confidence_score < 5:
+                thesis_evolution["thesisModification"] = "Previous thesis was weak - consider revision"
+            else:
+                thesis_evolution["thesisModification"] = "Previous thesis was moderate - monitor for changes"
+        
+    except Exception as e:
+        print(f"Warning: Could not analyze thesis evolution: {e}")
+        thesis_evolution["error"] = str(e)
+    
+    return thesis_evolution
+
+def analyze_market_evolution(current_data, previous_context):
+    """Analyzes how the market has evolved since the previous session."""
+    if not previous_context.get("previousPlanExists"):
+        return {"evolution": "No previous session data available"}
+    
+    evolution = {
+        "priceMovement": None,
+        "levelBreaks": [],
+        "trendContinuity": None,
+        "volatilityChange": None,
+        "keyObservations": []
+    }
+    
+    try:
+        # Compare current vs previous price
+        current_price = current_data["marketSnapshot"]["currentPrice"]
+        prev_price = previous_context["previousMarketSnapshot"]["currentPrice"]
+        price_change = current_price - prev_price
+        price_change_pips = round(price_change * 10000, 1)
+        
+        evolution["priceMovement"] = {
+            "change": price_change,
+            "changePips": price_change_pips,
+            "direction": "Bullish" if price_change > 0 else "Bearish" if price_change < 0 else "Neutral"
+        }
+        
+        # Check for key level breaks
+        prev_support = previous_context["previousKeyLevels"]["support"]
+        prev_resistance = previous_context["previousKeyLevels"]["resistance"]
+        
+        for level in prev_support:
+            if current_price < level:
+                evolution["levelBreaks"].append(f"Support broken: {level}")
+        
+        for level in prev_resistance:
+            if current_price > level:
+                evolution["levelBreaks"].append(f"Resistance broken: {level}")
+        
+        # Analyze trend continuity
+        current_trend = current_data["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
+        evolution["trendContinuity"] = current_trend
+        
+        # Generate key observations
+        if abs(price_change_pips) > 50:
+            evolution["keyObservations"].append(f"Significant price movement: {price_change_pips} pips")
+        
+        if evolution["levelBreaks"]:
+            evolution["keyObservations"].append(f"Key levels broken: {len(evolution['levelBreaks'])}")
+        
+        if current_trend != "Consolidating":
+            evolution["keyObservations"].append(f"Clear directional bias: {current_trend}")
+            
+    except Exception as e:
+        print(f"Warning: Could not analyze market evolution: {e}")
+        evolution["error"] = str(e)
+    
+    return evolution
+
 def generate_viper_packet():
     """Orchestrates the creation of the structured data packet."""
     print("\n--- STAGE 1: GENERATING VIPER DATA PACKET ---")
+    
+    # Get previous session context
+    previous_context = get_previous_session_analysis()
+    
     eurusd_d1 = get_market_data(SYMBOLS["EURUSD"], "2y", "1d")
     eurusd_d1['ATR_14'] = calculate_atr(eurusd_d1['High'], eurusd_d1['Low'], eurusd_d1['Close'], 14)
     
@@ -467,12 +759,22 @@ def generate_viper_packet():
         "predictedDailyRange": [round(last_close - last_atr, 4), round(last_close + last_atr, 4)]
     }
 
+    # Create the base packet
     packet = {
         "marketSnapshot": {"pair": "EURUSD", "currentPrice": last_close, "currentTimeUTC": datetime.now(timezone.utc).isoformat()},
         "multiTimeframeAnalysis": multi_tf,
         "volatilityMetrics": volatility,
         "fundamentalAnalysis": {"keyEconomicEvents": get_economic_calendar()},
         "intermarketConfluence": get_intermarket_analysis({k: v for k, v in SYMBOLS.items() if k != 'EURUSD'})
+    }
+    
+    # Add temporal analysis
+    market_evolution = analyze_market_evolution(packet, previous_context)
+    thesis_evolution = analyze_market_thesis_evolution(previous_context)
+    packet["temporalAnalysis"] = {
+        "previousSessionContext": previous_context,
+        "marketEvolution": market_evolution,
+        "thesisEvolution": thesis_evolution
     }
 
     # Ensure both the main trading_session directory and the date subdirectory exist
