@@ -935,34 +935,74 @@ def convert_analysis_to_json(analysis_text: str) -> str:
         # Extract scores from the analysis text
         import re
         
-        # Look for scoring patterns
-        quality_match = re.search(r'(\*?\*?Market Analysis:\*?\*?|Market Analysis:)\s*(\d+(?:\.\d+)?)/5', analysis_text, re.IGNORECASE)
-        strategy_match = re.search(r'(\*?\*?Strategy Development:\*?\*?|Strategy Development:)\s*(\d+(?:\.\d+)?)/5', analysis_text, re.IGNORECASE)
-        risk_match = re.search(r'(\*?\*?Risk Management:\*?\*?|Risk Management:)\s*(\d+(?:\.\d+)?)/5', analysis_text, re.IGNORECASE)
-        overall_match = re.search(r'(\*?\*?Overall:\*?\*?|Overall:)\s*(\d+(?:\.\d+)?)/5', analysis_text, re.IGNORECASE)
+        # Look for multiple possible scoring patterns the reviewer may use
+        # Pattern A: Market Analysis, Strategy Development, Risk Management, Overall (x/5 or x/10)
+        def find_score(pattern: str) -> tuple[float | None, float | None]:
+            m = re.search(pattern, analysis_text, re.IGNORECASE)
+            if not m:
+                return None, None
+            num = float(m.group(1))
+            denom = float(m.group(2)) if m.group(2) else 10.0
+            return num, denom
+
+        market_val, market_den = find_score(r'(?:\*?\*?Market Analysis:\*?\*?|Market Analysis:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        strategy_val, strategy_den = find_score(r'(?:\*?\*?Strategy Development:\*?\*?|Strategy Development:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        risk_val, risk_den = find_score(r'(?:\*?\*?Risk Management:\*?\*?|Risk Management:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        overall_val, overall_den = find_score(r'(?:\*?\*?Overall:\*?\*?|Overall:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
+        # Pattern B: Data Packet Score, Trade Plan Score (x/5 or x/10)
+        data_packet_val, data_packet_den = find_score(r'(?:Data Packet Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        trade_plan_val, trade_plan_den = find_score(r'(?:Trade Plan Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
+        def to_ten_scale(value: float | None, denom: float | None) -> int | None:
+            if value is None:
+                return None
+            d = denom if denom and denom > 0 else 10.0
+            scaled = value * (10.0 / d)
+            return int(round(scaled))
+
+        # Determine plan quality and confidence scores (1..10)
+        plan_quality_10 = None
+        confidence_10 = None
+
+        # Prefer explicit fields; otherwise fall back to trade plan score or market analysis
+        if market_val is not None:
+            plan_quality_10 = to_ten_scale(market_val, market_den)
+        if overall_val is not None:
+            confidence_10 = to_ten_scale(overall_val, overall_den)
+
+        # Fall back to Trade Plan Score for quality if not found
+        if plan_quality_10 is None and trade_plan_val is not None:
+            plan_quality_10 = to_ten_scale(trade_plan_val, trade_plan_den)
+
+        # Fall back to Data Packet Score or plan quality for confidence if not found
+        if confidence_10 is None:
+            if data_packet_val is not None:
+                confidence_10 = to_ten_scale(data_packet_val, data_packet_den)
+            elif plan_quality_10 is not None:
+                confidence_10 = plan_quality_10
         
-        # Extract decision
+        # Last resort defaults if nothing parsed
+        if plan_quality_10 is None:
+            plan_quality_10 = 0
+        if confidence_10 is None:
+            confidence_10 = 0
+        
+        # Extract decision heuristic
         decision = "NO-GO"
-        if "GO" in analysis_text.upper() and "NO-GO" not in analysis_text.upper():
+        upper_text = analysis_text.upper()
+        if "GO" in upper_text and "NO-GO" not in upper_text:
             decision = "GO"
         
         # Create JSON structure
         json_data = {
             "planQualityScore": {
-                "score": float(quality_match.group(2)) if quality_match else 0.0,
-                "reasoning": "Extracted from analysis text"
-            },
-            "strategyScore": {
-                "score": float(strategy_match.group(2)) if strategy_match else 0.0,
-                "reasoning": "Extracted from analysis text"
-            },
-            "riskManagementScore": {
-                "score": float(risk_match.group(2)) if risk_match else 0.0,
-                "reasoning": "Extracted from analysis text"
+                "score": plan_quality_10,
+                "justification": "Summarized from reviewer analysis"
             },
             "confidenceScore": {
-                "score": float(overall_match.group(2)) if overall_match else 0.0,
-                "reasoning": "Extracted from analysis text"
+                "score": confidence_10,
+                "justification": "Summarized from reviewer analysis"
             },
             "decision": decision,
             "reasoning": "Converted from markdown analysis",
