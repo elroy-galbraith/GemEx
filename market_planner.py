@@ -899,10 +899,35 @@ def clean_json_output(raw_output: str) -> str:
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
         cleaned = cleaned[start_idx:end_idx + 1]
     else:
-        # If no JSON found, try to convert markdown analysis to JSON
-        return convert_analysis_to_json(raw_output)
+        # If no JSON found, only convert when this looks like a reviewer analysis
+        if is_reviewer_analysis_text(raw_output):
+            return convert_analysis_to_json(raw_output)
+        # Otherwise, return original text unchanged
+        return raw_output
     
     return cleaned
+
+def is_reviewer_analysis_text(analysis_text: str) -> bool:
+    """Heuristically detect if text is the Reviewer analysis (markdown prose with scores).
+
+    We only attempt markdown->JSON conversion when these cues are present to avoid
+    converting arbitrary non-JSON strings.
+    """
+    if not analysis_text:
+        return False
+    lowered = analysis_text.lower()
+    cues = [
+        "analysis of the trade plan",
+        "scoring (out of 5)",
+        "market analysis:",
+        "strategy development:",
+        "risk management:",
+        "overall:",
+        "strengths:",
+        "weaknesses:",
+        "suggestions for improvement:"
+    ]
+    return any(cue in lowered for cue in cues)
 
 def convert_analysis_to_json(analysis_text: str) -> str:
     """Convert markdown analysis text to JSON format."""
