@@ -97,28 +97,40 @@ def _send_single_message(message, parse_mode):
     
     try:
         response = requests.post(url, data=data, timeout=10)
-        response.raise_for_status()
+        # Provide clearer error diagnostics without relying solely on exceptions
+        if not response.ok:
+            try:
+                error_text = response.text
+            except Exception:
+                error_text = "<no body>"
+            print(f"❌ Telegram API error ({response.status_code}): {error_text[:300]}")
+            response.raise_for_status()
         print("✅ Telegram message sent successfully")
         return True
     except requests.exceptions.RequestException as e:
-        if parse_mode == "Markdown":
-            print(f"❌ Markdown parsing failed, retrying with plain text: {e}")
-            # Retry without parse_mode
+        # Fallback to plain text for both Markdown and HTML parsing errors
+        if parse_mode in ["Markdown", "HTML"]:
+            print(f"❌ {parse_mode} parsing failed, retrying with plain text: {e}")
             data_plain = {
                 "chat_id": TELEGRAM_CHAT_ID,
                 "text": message
             }
             try:
                 response = requests.post(url, data=data_plain, timeout=10)
-                response.raise_for_status()
+                if not response.ok:
+                    try:
+                        error_text = response.text
+                    except Exception:
+                        error_text = "<no body>"
+                    print(f"❌ Telegram API error (plain text, {response.status_code}): {error_text[:300]}")
+                    response.raise_for_status()
                 print("✅ Telegram message sent successfully (plain text)")
                 return True
             except requests.exceptions.RequestException as e2:
                 print(f"❌ Failed to send Telegram message (plain text): {e2}")
                 return False
-        else:
-            print(f"❌ Failed to send Telegram message: {e}")
-            return False
+        print(f"❌ Failed to send Telegram message: {e}")
+        return False
 
 def _send_split_messages(message, parse_mode, max_length):
     """Split and send long messages in chunks."""
