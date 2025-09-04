@@ -5,6 +5,7 @@ from scipy.signal import find_peaks
 from datetime import datetime, timezone
 import os
 import json
+import html
 from pathlib import Path
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -20,10 +21,15 @@ load_dotenv()
 # To run locally, set your API key as an environment variable:
 # export GOOGLE_API_KEY="your_api_key_here"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") #, userdata.get('GEMINI_API_KEY'))
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found. Please set it as an environment variable.")
-genai.configure(api_key=GEMINI_API_KEY)
-MODEL_NAME = "gemini-1.5-pro-latest"
+
+# Only configure Gemini if we're actually running the main analysis
+# This allows testing modules to import without requiring the API key
+def configure_gemini():
+    """Configure Gemini API - only call this when actually needed."""
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not found. Please set it as an environment variable.")
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel("gemini-1.5-pro-latest")
 
 # --- Telegram Configuration ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -85,34 +91,48 @@ def _send_single_message(message, parse_mode):
     # If Markdown parsing fails, fall back to plain text
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": parse_mode
+        "text": message
     }
+    # Only include parse_mode when explicitly using a supported format
+    if parse_mode in ["Markdown", "HTML"]:
+        data["parse_mode"] = parse_mode
     
     try:
         response = requests.post(url, data=data, timeout=10)
-        response.raise_for_status()
+        # Provide clearer error diagnostics without relying solely on exceptions
+        if not response.ok:
+            try:
+                error_text = response.text
+            except Exception:
+                error_text = "<no body>"
+            print(f"❌ Telegram API error ({response.status_code}): {error_text[:300]}")
+            response.raise_for_status()
         print("✅ Telegram message sent successfully")
         return True
     except requests.exceptions.RequestException as e:
-        if parse_mode == "Markdown":
-            print(f"❌ Markdown parsing failed, retrying with plain text: {e}")
-            # Retry without parse_mode
+        # Fallback to plain text for both Markdown and HTML parsing errors
+        if parse_mode in ["Markdown", "HTML"]:
+            print(f"❌ {parse_mode} parsing failed, retrying with plain text: {e}")
             data_plain = {
                 "chat_id": TELEGRAM_CHAT_ID,
                 "text": message
             }
             try:
                 response = requests.post(url, data=data_plain, timeout=10)
-                response.raise_for_status()
+                if not response.ok:
+                    try:
+                        error_text = response.text
+                    except Exception:
+                        error_text = "<no body>"
+                    print(f"❌ Telegram API error (plain text, {response.status_code}): {error_text[:300]}")
+                    response.raise_for_status()
                 print("✅ Telegram message sent successfully (plain text)")
                 return True
             except requests.exceptions.RequestException as e2:
                 print(f"❌ Failed to send Telegram message (plain text): {e2}")
                 return False
-        else:
-            print(f"❌ Failed to send Telegram message: {e}")
-            return False
+        print(f"❌ Failed to send Telegram message: {e}")
+        return False
 
 def _send_split_messages(message, parse_mode, max_length):
     """Split and send long messages in chunks."""
@@ -139,7 +159,13 @@ def _send_split_messages(message, parse_mode, max_length):
     # Send all chunks
     success_count = 0
     for i, chunk in enumerate(chunks, 1):
-        chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
+        if parse_mode == "HTML":
+            chunk_header = f"<b>📄 Part {i} of {len(chunks)}</b>\n\n"
+        elif parse_mode == "Markdown":
+            chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
+        else:
+            # Plain text header when no parse mode is used
+            chunk_header = f"📄 Part {i} of {len(chunks)}\n\n"
         full_chunk = chunk_header + chunk
         
         if _send_single_message(full_chunk, parse_mode):
@@ -173,38 +199,42 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         quality_score = review_scores['planQualityScore']['score']
         confidence_score = review_scores['confidenceScore']['score']
         
-        # Create summary message with safer formatting
-        message = f"""🚀 *GemEx Trading Analysis Complete*
+        # Create summary message using HTML parse mode with proper escaping
+        safe_plan = html.escape(trade_plan)
+        safe_daily_trend = html.escape(str(daily_trend))
+        safe_h4_trend = html.escape(str(h4_trend))
+        safe_time = html.escape(str(current_time[:19]))
+        safe_price = html.escape(str(current_price))
 
-📊 *Market Snapshot*
-• EURUSD: {current_price}
-• Daily Trend: {daily_trend}
-• H4 Trend: {h4_trend}
-• Time: {current_time[:19]} UTC
+        message = (
+            f"<b>🚀 GemEx Trading Analysis Complete</b>\n\n"
+            f"<b>📊 Market Snapshot</b>\n"
+            f"• EURUSD: {safe_price}\n"
+            f"• Daily Trend: {safe_daily_trend}\n"
+            f"• H4 Trend: {safe_h4_trend}\n"
+            f"• Time: {safe_time} UTC\n\n"
+            f"<b>📈 Analysis Scores</b>\n"
+            f"• Plan Quality: {quality_score}/10\n"
+            f"• Confidence: {confidence_score}/10\n\n"
+            f"<b>🎯 Decision</b>\n"
+        )
 
-📈 *Analysis Scores*
-• Plan Quality: {quality_score}/10
-• Confidence: {confidence_score}/10
-
-🎯 *Decision*
-"""
-        
         if quality_score >= 6 and confidence_score >= 6:
-            message += "🟢 *GO FOR EXECUTION* - Plan is solid and conviction is high"
+            message += "🟢 <b>GO FOR EXECUTION</b> - Plan is solid and conviction is high"
         elif quality_score >= 6 and confidence_score < 6:
-            message += "🟡 *WAIT AND SEE* - Plan is solid, but market feel is off"
+            message += "🟡 <b>WAIT AND SEE</b> - Plan is solid, but market feel is off"
         else:
-            message += "🔴 *NO-GO* - DISCARD PLAN - Quality or Confidence too low"
-        
-        message += f"""
+            message += "🔴 <b>NO-GO</b> - DISCARD PLAN - Quality or Confidence too low"
 
-📋 *Complete Trade Plan*
-```
-{trade_plan}
-```
-"""
+        # Send the summary first in HTML
+        summary_sent = send_telegram_message(message, parse_mode="HTML")
         
-        return send_telegram_message(message)
+        # Then send the full plan separately as plain text to avoid HTML entity issues in long chunks
+        plan_header = "📋 Complete Trade Plan\n\n"
+        plan_sent = send_telegram_message(plan_header + trade_plan, parse_mode="Markdown") or \
+                    send_telegram_message(plan_header + trade_plan)
+        
+        return summary_sent and plan_sent
         
     except Exception as e:
         print(f"❌ Error creating Telegram summary: {e}")
@@ -421,9 +451,374 @@ def get_economic_calendar():
         print(f"Could not fetch economic calendar: {e}")
         return []
 
+def download_previous_session_artifacts():
+    """Download previous session data from GitHub Actions artifacts or remote storage."""
+    print("Attempting to download previous session data...")
+    
+    # TEMPORARY: Force fresh start - remove this after a few successful runs
+    if os.environ.get('FORCE_FRESH_START') == 'true':
+        print("🚀 FORCE_FRESH_START enabled - skipping previous session download")
+        return None
+    
+    # Check if we're running in GitHub Actions
+    if os.environ.get('GITHUB_ACTIONS'):
+        print("Running in GitHub Actions - attempting to download previous artifacts...")
+        return download_from_github_artifacts()
+    else:
+        print("Running locally - checking local files...")
+        return load_local_previous_session()
+
+def download_from_github_artifacts():
+    """Download previous session data from GitHub Actions artifacts."""
+    try:
+        import requests
+        import zipfile
+        import tempfile
+        
+        # Get GitHub token and repository info
+        github_token = os.environ.get('GITHUB_TOKEN')
+        if not github_token:
+            print("Warning: No GITHUB_TOKEN found. Cannot download previous artifacts.")
+            return None
+            
+        # Get repository info
+        github_repo = os.environ.get('GITHUB_REPOSITORY')
+        if not github_repo:
+            print("Warning: No GITHUB_REPOSITORY found.")
+            return None
+        
+        # Get yesterday's date
+        from datetime import timedelta
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+        
+        # Try to find recent artifacts (last 7 days)
+        headers = {'Authorization': f'token {github_token}'}
+        artifacts_url = f"https://api.github.com/repos/{github_repo}/actions/artifacts"
+        
+        response = requests.get(artifacts_url, headers=headers)
+        if response.status_code != 200:
+            print(f"Warning: Could not fetch artifacts list: {response.status_code}")
+            if response.status_code == 403:
+                print("This might be due to insufficient permissions. The GITHUB_TOKEN may not have access to artifacts.")
+            return None
+            
+        artifacts = response.json().get('artifacts', [])
+        
+        # Find the most recent trading session artifact
+        trading_artifacts = [a for a in artifacts if a['name'].startswith('trading-session-')]
+        if not trading_artifacts:
+            print("No previous trading session artifacts found.")
+            return None
+            
+        # Get the most recent artifact
+        latest_artifact = max(trading_artifacts, key=lambda x: x['created_at'])
+        print(f"Found previous artifact: {latest_artifact['name']}")
+        
+        # Download the artifact
+        download_url = latest_artifact['archive_download_url']
+        print(f"Downloading artifact from: {download_url}")
+        download_response = requests.get(download_url, headers=headers)
+        
+        if download_response.status_code != 200:
+            print(f"Warning: Could not download artifact: {download_response.status_code}")
+            print(f"Response content: {download_response.text[:200]}")
+            return None
+        
+        print(f"✅ Successfully downloaded artifact ({len(download_response.content)} bytes)")
+        
+        # Extract the zip file
+        with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
+            tmp_file.write(download_response.content)
+            tmp_file_path = tmp_file.name
+        
+        with tempfile.TemporaryDirectory() as extract_dir:
+            print(f"Extracting to: {extract_dir}")
+            with zipfile.ZipFile(tmp_file_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            
+            # List extracted contents for debugging
+            extract_path = Path(extract_dir)
+            print(f"Extracted contents: {list(extract_path.iterdir())}")
+            
+            # Look for trading_session directory first (expected structure)
+            trading_session_path = extract_path / "trading_session"
+            if trading_session_path.exists():
+                print(f"Found trading_session directory: {list(trading_session_path.iterdir())}")
+                
+                # Look for yesterday's session data
+                yesterday_dir = trading_session_path / yesterday
+                if yesterday_dir.exists():
+                    print(f"Found yesterday's session: {yesterday_dir}")
+                    return load_session_data_from_path(yesterday_dir)
+                else:
+                    # If yesterday's data isn't available, try to find the most recent session
+                    session_dirs = list(trading_session_path.glob("20*"))
+                    if session_dirs:
+                        latest_session = max(session_dirs, key=lambda x: x.name)
+                        print(f"Using most recent session data: {latest_session.name}")
+                        return load_session_data_from_path(latest_session)
+                    else:
+                        print("No session directories found in trading_session")
+            else:
+                print("No trading_session directory found in artifact")
+                
+                # Check if date folders are directly in the root (alternative structure)
+                session_dirs = list(extract_path.glob("20*"))
+                if session_dirs:
+                    print(f"Found date directories directly in artifact: {[d.name for d in session_dirs]}")
+                    
+                    # Look for yesterday's session data
+                    yesterday_dir = extract_path / yesterday
+                    if yesterday_dir.exists():
+                        print(f"Found yesterday's session: {yesterday_dir}")
+                        return load_session_data_from_path(yesterday_dir)
+                    else:
+                        # Use the most recent session
+                        latest_session = max(session_dirs, key=lambda x: x.name)
+                        print(f"Using most recent session data: {latest_session.name}")
+                        return load_session_data_from_path(latest_session)
+                else:
+                    print("No date directories found in artifact")
+        
+        # Clean up
+        os.unlink(tmp_file_path)
+        
+    except Exception as e:
+        print(f"Warning: Could not download previous artifacts: {e}")
+        return None
+
+def load_local_previous_session():
+    """Load previous session data from local files."""
+    from datetime import timedelta
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+    yesterday_dir = OUTPUT_DIR / yesterday
+    
+    if yesterday_dir.exists():
+        return load_session_data_from_path(yesterday_dir)
+    return None
+
+def load_session_data_from_path(session_path):
+    """Load session data from a specific path."""
+    try:
+        print(f"Loading session data from: {session_path}")
+        print(f"Session path exists: {session_path.exists()}")
+        
+        if not session_path.exists():
+            print(f"Session path does not exist: {session_path}")
+            return None
+        
+        # List contents of the session directory
+        session_contents = list(session_path.iterdir())
+        print(f"Session directory contents: {[f.name for f in session_contents]}")
+        
+        previous_context = {
+            "previousSessionDate": session_path.name,
+            "previousPlanExists": True,
+            "previousMarketSnapshot": None,
+            "previousKeyLevels": None,
+            "previousPlanOutcome": None,
+            "previousPlanContent": None
+        }
+        
+        # Load previous viper packet
+        prev_packet_path = session_path / "viper_packet.json"
+        print(f"Looking for viper_packet.json: {prev_packet_path}")
+        print(f"viper_packet.json exists: {prev_packet_path.exists()}")
+        
+        if prev_packet_path.exists():
+            with open(prev_packet_path, 'r') as f:
+                prev_packet = json.load(f)
+            
+            previous_context["previousMarketSnapshot"] = prev_packet.get("marketSnapshot")
+            previous_context["previousKeyLevels"] = {
+                "support": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keySupportLevels", []),
+                "resistance": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keyResistanceLevels", [])
+            }
+            print("✅ Loaded viper_packet.json")
+        else:
+            print("⚠️  viper_packet.json not found")
+        
+        # Load previous trade plan
+        prev_plan_path = session_path / "trade_plan.md"
+        print(f"Looking for trade_plan.md: {prev_plan_path}")
+        print(f"trade_plan.md exists: {prev_plan_path.exists()}")
+        
+        if prev_plan_path.exists():
+            with open(prev_plan_path, 'r') as f:
+                previous_context["previousPlanContent"] = f.read()
+            print("✅ Loaded trade_plan.md")
+        else:
+            print("⚠️  trade_plan.md not found")
+        
+        # Load previous review scores
+        prev_review_path = session_path / "review_scores.json"
+        print(f"Looking for review_scores.json: {prev_review_path}")
+        print(f"review_scores.json exists: {prev_review_path.exists()}")
+        
+        if prev_review_path.exists():
+            with open(prev_review_path, 'r') as f:
+                previous_context["previousPlanOutcome"] = json.load(f)
+            print("✅ Loaded review_scores.json")
+        else:
+            print("⚠️  review_scores.json not found")
+        
+        print(f"✅ Successfully loaded previous session data from {session_path.name}")
+        return previous_context
+        
+    except Exception as e:
+        print(f"Warning: Could not load session data from {session_path}: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def create_fallback_previous_context():
+    """Create a fallback context when no previous session data is available."""
+    from datetime import timedelta
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y_%m_%d")
+    
+    return {
+        "previousSessionDate": yesterday,
+        "previousPlanExists": False,
+        "previousMarketSnapshot": None,
+        "previousKeyLevels": None,
+        "previousPlanOutcome": None,
+        "marketEvolution": None,
+        "fallbackMode": True
+    }
+
+def get_previous_session_analysis():
+    """Analyzes the previous trading session to provide context for current analysis."""
+    print("Analyzing previous session context...")
+    
+    # Try to get previous session data
+    previous_context = download_previous_session_artifacts()
+    
+    if previous_context is None:
+        # Fallback: create empty context
+        previous_context = create_fallback_previous_context()
+        print("⚠️  No previous session data available - starting fresh analysis")
+        print("💡 This is normal for the first run or when no recent artifacts exist")
+    
+    return previous_context
+
+def analyze_market_thesis_evolution(previous_context):
+    """Analyzes how the market thesis has evolved from previous sessions."""
+    if not previous_context.get("previousPlanExists"):
+        return {"thesisEvolution": "No previous session data available"}
+    
+    thesis_evolution = {
+        "previousThesis": None,
+        "thesisContinuity": None,
+        "thesisModification": None,
+        "invalidationRisk": None
+    }
+    
+    try:
+        # Extract previous thesis from previous plan content
+        if previous_context.get("previousPlanContent"):
+            prev_plan = previous_context["previousPlanContent"]
+            
+            # Look for thesis indicators in the previous plan
+            if prev_plan and isinstance(prev_plan, str) and "Overarching Bias:" in prev_plan:
+                # Extract the bias from previous plan
+                lines = prev_plan.split('\n')
+                for i, line in enumerate(lines):
+                    if "Overarching Bias:" in line:
+                        thesis_evolution["previousThesis"] = line.split("Overarching Bias:")[-1].strip()
+                        break
+            
+            # Analyze thesis continuity
+            if "Bullish" in thesis_evolution.get("previousThesis", ""):
+                thesis_evolution["thesisContinuity"] = "Bullish bias from previous session"
+            elif "Bearish" in thesis_evolution.get("previousThesis", ""):
+                thesis_evolution["thesisContinuity"] = "Bearish bias from previous session"
+            else:
+                thesis_evolution["thesisContinuity"] = "Neutral/Range-bound bias from previous session"
+        
+        # Check if previous plan had high quality scores (indicating strong thesis)
+        if previous_context.get("previousPlanOutcome"):
+            prev_scores = previous_context["previousPlanOutcome"]
+            quality_score = prev_scores.get("planQualityScore", {}).get("score", 0)
+            confidence_score = prev_scores.get("confidenceScore", {}).get("score", 0)
+            
+            if quality_score >= 7 and confidence_score >= 7:
+                thesis_evolution["thesisModification"] = "Previous thesis was strong - consider continuation"
+            elif quality_score < 5 or confidence_score < 5:
+                thesis_evolution["thesisModification"] = "Previous thesis was weak - consider revision"
+            else:
+                thesis_evolution["thesisModification"] = "Previous thesis was moderate - monitor for changes"
+        
+    except Exception as e:
+        print(f"Warning: Could not analyze thesis evolution: {e}")
+        thesis_evolution["error"] = str(e)
+    
+    return thesis_evolution
+
+def analyze_market_evolution(current_data, previous_context):
+    """Analyzes how the market has evolved since the previous session."""
+    if not previous_context.get("previousPlanExists"):
+        return {"evolution": "No previous session data available"}
+    
+    evolution = {
+        "priceMovement": None,
+        "levelBreaks": [],
+        "trendContinuity": None,
+        "volatilityChange": None,
+        "keyObservations": []
+    }
+    
+    try:
+        # Compare current vs previous price
+        current_price = current_data["marketSnapshot"]["currentPrice"]
+        prev_price = previous_context["previousMarketSnapshot"]["currentPrice"]
+        price_change = current_price - prev_price
+        price_change_pips = round(price_change * 10000, 1)
+        
+        evolution["priceMovement"] = {
+            "change": price_change,
+            "changePips": price_change_pips,
+            "direction": "Bullish" if price_change > 0 else "Bearish" if price_change < 0 else "Neutral"
+        }
+        
+        # Check for key level breaks
+        prev_support = previous_context["previousKeyLevels"]["support"]
+        prev_resistance = previous_context["previousKeyLevels"]["resistance"]
+        
+        for level in prev_support:
+            if current_price < level:
+                evolution["levelBreaks"].append(f"Support broken: {level}")
+        
+        for level in prev_resistance:
+            if current_price > level:
+                evolution["levelBreaks"].append(f"Resistance broken: {level}")
+        
+        # Analyze trend continuity
+        current_trend = current_data["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
+        evolution["trendContinuity"] = current_trend
+        
+        # Generate key observations
+        if abs(price_change_pips) > 50:
+            evolution["keyObservations"].append(f"Significant price movement: {price_change_pips} pips")
+        
+        if evolution["levelBreaks"]:
+            evolution["keyObservations"].append(f"Key levels broken: {len(evolution['levelBreaks'])}")
+        
+        if current_trend != "Consolidating":
+            evolution["keyObservations"].append(f"Clear directional bias: {current_trend}")
+            
+    except Exception as e:
+        print(f"Warning: Could not analyze market evolution: {e}")
+        evolution["error"] = str(e)
+    
+    return evolution
+
 def generate_viper_packet():
     """Orchestrates the creation of the structured data packet."""
     print("\n--- STAGE 1: GENERATING VIPER DATA PACKET ---")
+    
+    # Get previous session context
+    previous_context = get_previous_session_analysis()
+    
     eurusd_d1 = get_market_data(SYMBOLS["EURUSD"], "2y", "1d")
     eurusd_d1['ATR_14'] = calculate_atr(eurusd_d1['High'], eurusd_d1['Low'], eurusd_d1['Close'], 14)
     
@@ -467,12 +862,22 @@ def generate_viper_packet():
         "predictedDailyRange": [round(last_close - last_atr, 4), round(last_close + last_atr, 4)]
     }
 
+    # Create the base packet
     packet = {
         "marketSnapshot": {"pair": "EURUSD", "currentPrice": last_close, "currentTimeUTC": datetime.now(timezone.utc).isoformat()},
         "multiTimeframeAnalysis": multi_tf,
         "volatilityMetrics": volatility,
         "fundamentalAnalysis": {"keyEconomicEvents": get_economic_calendar()},
         "intermarketConfluence": get_intermarket_analysis({k: v for k, v in SYMBOLS.items() if k != 'EURUSD'})
+    }
+    
+    # Add temporal analysis
+    market_evolution = analyze_market_evolution(packet, previous_context)
+    thesis_evolution = analyze_market_thesis_evolution(previous_context)
+    packet["temporalAnalysis"] = {
+        "previousSessionContext": previous_context,
+        "marketEvolution": market_evolution,
+        "thesisEvolution": thesis_evolution
     }
 
     # Ensure both the main trading_session directory and the date subdirectory exist
@@ -492,12 +897,180 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
     """A simple wrapper for calling the Gemini model."""
     print("...")
     try:
-        model = genai.GenerativeModel(MODEL_NAME, system_instruction=system_prompt)
-        response = model.generate_content(user_prompt)
+        model = configure_gemini()
+        
+        # Combine system prompt and user prompt for Gemini
+        # Gemini doesn't have separate system/user roles like OpenAI, so we combine them
+        full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
+        
+        response = model.generate_content(full_prompt)
         return response.text.strip()
     except Exception as e:
         print(f"An error occurred during the LLM call: {e}")
         return ""
+
+def clean_json_output(raw_output: str) -> str:
+    """Clean and extract JSON from LLM output."""
+    if not raw_output:
+        return ""
+    
+    # Remove markdown code blocks
+    cleaned = raw_output.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    
+    # Remove any leading/trailing whitespace
+    cleaned = cleaned.strip()
+    
+    # Try to find JSON object boundaries
+    start_idx = cleaned.find('{')
+    end_idx = cleaned.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        cleaned = cleaned[start_idx:end_idx + 1]
+    else:
+        # If no JSON found, attempt conversion when this looks like a reviewer analysis
+        if is_reviewer_analysis_text(raw_output):
+            return convert_analysis_to_json(raw_output)
+        # Otherwise, return original text unchanged
+        return raw_output
+    
+    return cleaned
+
+def is_reviewer_analysis_text(analysis_text: str) -> bool:
+    """Heuristically detect if text is the Reviewer analysis (markdown prose with scores).
+
+    We only attempt markdown->JSON conversion when these cues are present to avoid
+    converting arbitrary non-JSON strings.
+    """
+    if not analysis_text:
+        return False
+    lowered = analysis_text.lower()
+    cues = [
+        "analysis of the trade plan",
+        "scoring (out of 5)",
+        "market analysis:",
+        "strategy development:",
+        "risk management:",
+        "overall:",
+        "strengths:",
+        "weaknesses:",
+        "suggestions for improvement:",
+        "plan quality score:",
+        "confidence score:",
+        "analysis and scores"
+    ]
+    return any(cue in lowered for cue in cues)
+
+def convert_analysis_to_json(analysis_text: str) -> str:
+    """Convert markdown analysis text to JSON format."""
+    try:
+        # Extract scores from the analysis text
+        import re
+        
+        # Look for multiple possible scoring patterns the reviewer may use
+        # Pattern A: Market Analysis, Strategy Development, Risk Management, Overall (x/5 or x/10)
+        def find_score(pattern: str) -> tuple[float | None, float | None]:
+            m = re.search(pattern, analysis_text, re.IGNORECASE)
+            if not m:
+                return None, None
+            num = float(m.group(1))
+            denom = float(m.group(2)) if m.group(2) else 10.0
+            return num, denom
+
+        market_val, market_den = find_score(r'(?:\*?\*?Market Analysis:\*?\*?|Market Analysis:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        strategy_val, strategy_den = find_score(r'(?:\*?\*?Strategy Development:\*?\*?|Strategy Development:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        risk_val, risk_den = find_score(r'(?:\*?\*?Risk Management:\*?\*?|Risk Management:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        overall_val, overall_den = find_score(r'(?:\*?\*?Overall:\*?\*?|Overall:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
+        # Pattern B: Data Packet Score, Trade Plan Score (x/5 or x/10)
+        data_packet_val, data_packet_den = find_score(r'(?:Data Packet Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        trade_plan_val, trade_plan_den = find_score(r'(?:Trade Plan Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
+        # Pattern C: Plan Quality Score, Confidence Score (x/5 or x/10)
+        plan_quality_val_c, plan_quality_den_c = find_score(r'(?:Plan Quality Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        confidence_val_c, confidence_den_c = find_score(r'(?:Confidence Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
+        def to_ten_scale(value: float | None, denom: float | None) -> int | None:
+            if value is None:
+                return None
+            d = denom if denom and denom > 0 else 10.0
+            scaled = value * (10.0 / d)
+            return int(round(scaled))
+
+        # Determine plan quality and confidence scores (1..10)
+        plan_quality_10 = None
+        confidence_10 = None
+
+        # Prefer explicit fields; otherwise fall back to trade plan score or market analysis
+        if market_val is not None:
+            plan_quality_10 = to_ten_scale(market_val, market_den)
+        if overall_val is not None:
+            confidence_10 = to_ten_scale(overall_val, overall_den)
+
+        # Fall back to Trade Plan Score for quality if not found
+        if plan_quality_10 is None and trade_plan_val is not None:
+            plan_quality_10 = to_ten_scale(trade_plan_val, trade_plan_den)
+
+        # Fall back to explicit Plan Quality / Confidence if present
+        if plan_quality_10 is None and plan_quality_val_c is not None:
+            plan_quality_10 = to_ten_scale(plan_quality_val_c, plan_quality_den_c)
+        if confidence_10 is None and confidence_val_c is not None:
+            confidence_10 = to_ten_scale(confidence_val_c, confidence_den_c)
+
+        # Fall back to Data Packet Score or plan quality for confidence if not found
+        if confidence_10 is None:
+            if data_packet_val is not None:
+                confidence_10 = to_ten_scale(data_packet_val, data_packet_den)
+            elif plan_quality_10 is not None:
+                confidence_10 = plan_quality_10
+        
+        # Last resort defaults if nothing parsed
+        if plan_quality_10 is None:
+            plan_quality_10 = 0
+        if confidence_10 is None:
+            confidence_10 = 0
+        
+        # Extract decision heuristic
+        decision = "NO-GO"
+        upper_text = analysis_text.upper()
+        if "GO" in upper_text and "NO-GO" not in upper_text:
+            decision = "GO"
+        
+        # Create JSON structure
+        json_data = {
+            "planQualityScore": {
+                "score": plan_quality_10,
+                "justification": "Summarized from reviewer analysis"
+            },
+            "confidenceScore": {
+                "score": confidence_10,
+                "justification": "Summarized from reviewer analysis"
+            },
+            "decision": decision,
+            "reasoning": "Converted from markdown analysis",
+            "suggestions": ["Reviewer returned markdown instead of JSON - converted automatically"]
+        }
+        
+        return json.dumps(json_data, indent=2)
+        
+    except Exception as e:
+        print(f"Warning: Could not convert analysis to JSON: {e}")
+        # Return a fallback JSON
+        return json.dumps({
+            "planQualityScore": {"score": 0.0, "reasoning": "JSON conversion failed"},
+            "strategyScore": {"score": 0.0, "reasoning": "JSON conversion failed"},
+            "riskManagementScore": {"score": 0.0, "reasoning": "JSON conversion failed"},
+            "confidenceScore": {"score": 0.0, "reasoning": "JSON conversion failed"},
+            "decision": "NO-GO",
+            "reasoning": "JSON conversion failed",
+            "suggestions": ["Reviewer output could not be parsed"]
+        }, indent=2)
 
 def run_viper_coil(viper_packet):
     """Executes the Planner -> Reviewer LLM pipeline."""
@@ -537,10 +1110,20 @@ def run_viper_coil(viper_packet):
 
     # --- Step 4: Parse Review and Make Final Decision ---
     try:
-        if review_output_raw.startswith("```json"):
-            review_output_raw = review_output_raw[7:-3].strip()
-        review_scores = json.loads(review_output_raw)
+        # Clean up the review output using the dedicated function
+        cleaned_output = clean_json_output(review_output_raw)
         
+        if not cleaned_output:
+            raise ValueError("Empty or invalid output from reviewer")
+        
+        # Try to parse the JSON
+        review_scores = json.loads(cleaned_output)
+        
+        # Validate the structure
+        if 'planQualityScore' not in review_scores or 'confidenceScore' not in review_scores:
+            raise KeyError("Missing required score fields")
+        
+        # Save the scores
         with open(REVIEW_OUTPUT_PATH, 'w') as f:
             json.dump(review_scores, f, indent=2)
         print(f"✅ Scores parsed and saved to: {REVIEW_OUTPUT_PATH.name}")
@@ -567,6 +1150,34 @@ def run_viper_coil(viper_packet):
         print(f"❌ ERROR: Reviewer returned invalid JSON or unexpected structure: {e}")
         print("--- Raw Reviewer Output ---")
         print(review_output_raw)
+        print("--- End Raw Output ---")
+        
+        # Create fallback review scores to prevent file not found errors
+        fallback_scores = {
+            "planQualityScore": {
+                "score": 1,
+                "justification": "Reviewer failed to provide valid analysis - fallback scores applied"
+            },
+            "confidenceScore": {
+                "score": 1,
+                "justification": "Reviewer failed to provide valid analysis - fallback scores applied"
+            },
+            "error": {
+                "type": str(type(e).__name__),
+                "message": str(e),
+                "raw_output": review_output_raw
+            }
+        }
+        
+        # Save fallback scores
+        with open(REVIEW_OUTPUT_PATH, 'w') as f:
+            json.dump(fallback_scores, f, indent=2)
+        print(f"⚠️  Fallback scores saved to: {REVIEW_OUTPUT_PATH.name}")
+        
+        # Show fallback decision
+        print("\n--- FALLBACK DECISION ---")
+        print("🔴 DECISION: NO-GO. DISCARD PLAN. Reviewer analysis failed.")
+        print("-" * 50)
 
 
 # --- 3. MAIN EXECUTION BLOCK ---
