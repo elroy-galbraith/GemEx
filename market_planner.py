@@ -486,11 +486,15 @@ def download_from_github_artifacts():
         
         # Download the artifact
         download_url = latest_artifact['archive_download_url']
+        print(f"Downloading artifact from: {download_url}")
         download_response = requests.get(download_url, headers=headers)
         
         if download_response.status_code != 200:
             print(f"Warning: Could not download artifact: {download_response.status_code}")
+            print(f"Response content: {download_response.text[:200]}")
             return None
+        
+        print(f"✅ Successfully downloaded artifact ({len(download_response.content)} bytes)")
         
         # Extract the zip file
         with tempfile.NamedTemporaryFile(suffix='.zip', delete=False) as tmp_file:
@@ -498,20 +502,35 @@ def download_from_github_artifacts():
             tmp_file_path = tmp_file.name
         
         with tempfile.TemporaryDirectory() as extract_dir:
+            print(f"Extracting to: {extract_dir}")
             with zipfile.ZipFile(tmp_file_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_dir)
             
-            # Look for yesterday's session data
-            yesterday_dir = Path(extract_dir) / "trading_session" / yesterday
-            if yesterday_dir.exists():
-                return load_session_data_from_path(yesterday_dir)
+            # List extracted contents for debugging
+            extract_path = Path(extract_dir)
+            print(f"Extracted contents: {list(extract_path.iterdir())}")
+            
+            # Look for trading_session directory
+            trading_session_path = extract_path / "trading_session"
+            if trading_session_path.exists():
+                print(f"Found trading_session directory: {list(trading_session_path.iterdir())}")
+                
+                # Look for yesterday's session data
+                yesterday_dir = trading_session_path / yesterday
+                if yesterday_dir.exists():
+                    print(f"Found yesterday's session: {yesterday_dir}")
+                    return load_session_data_from_path(yesterday_dir)
+                else:
+                    # If yesterday's data isn't available, try to find the most recent session
+                    session_dirs = list(trading_session_path.glob("20*"))
+                    if session_dirs:
+                        latest_session = max(session_dirs, key=lambda x: x.name)
+                        print(f"Using most recent session data: {latest_session.name}")
+                        return load_session_data_from_path(latest_session)
+                    else:
+                        print("No session directories found in trading_session")
             else:
-                # If yesterday's data isn't available, try to find the most recent session
-                session_dirs = list((Path(extract_dir) / "trading_session").glob("20*"))
-                if session_dirs:
-                    latest_session = max(session_dirs, key=lambda x: x.name)
-                    print(f"Using most recent session data: {latest_session.name}")
-                    return load_session_data_from_path(latest_session)
+                print("No trading_session directory found in artifact")
         
         # Clean up
         os.unlink(tmp_file_path)
@@ -533,6 +552,17 @@ def load_local_previous_session():
 def load_session_data_from_path(session_path):
     """Load session data from a specific path."""
     try:
+        print(f"Loading session data from: {session_path}")
+        print(f"Session path exists: {session_path.exists()}")
+        
+        if not session_path.exists():
+            print(f"Session path does not exist: {session_path}")
+            return None
+        
+        # List contents of the session directory
+        session_contents = list(session_path.iterdir())
+        print(f"Session directory contents: {[f.name for f in session_contents]}")
+        
         previous_context = {
             "previousSessionDate": session_path.name,
             "previousPlanExists": True,
@@ -544,6 +574,9 @@ def load_session_data_from_path(session_path):
         
         # Load previous viper packet
         prev_packet_path = session_path / "viper_packet.json"
+        print(f"Looking for viper_packet.json: {prev_packet_path}")
+        print(f"viper_packet.json exists: {prev_packet_path.exists()}")
+        
         if prev_packet_path.exists():
             with open(prev_packet_path, 'r') as f:
                 prev_packet = json.load(f)
@@ -553,24 +586,41 @@ def load_session_data_from_path(session_path):
                 "support": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keySupportLevels", []),
                 "resistance": prev_packet.get("multiTimeframeAnalysis", {}).get("Daily", {}).get("keyResistanceLevels", [])
             }
+            print("✅ Loaded viper_packet.json")
+        else:
+            print("⚠️  viper_packet.json not found")
         
         # Load previous trade plan
         prev_plan_path = session_path / "trade_plan.md"
+        print(f"Looking for trade_plan.md: {prev_plan_path}")
+        print(f"trade_plan.md exists: {prev_plan_path.exists()}")
+        
         if prev_plan_path.exists():
             with open(prev_plan_path, 'r') as f:
                 previous_context["previousPlanContent"] = f.read()
+            print("✅ Loaded trade_plan.md")
+        else:
+            print("⚠️  trade_plan.md not found")
         
         # Load previous review scores
         prev_review_path = session_path / "review_scores.json"
+        print(f"Looking for review_scores.json: {prev_review_path}")
+        print(f"review_scores.json exists: {prev_review_path.exists()}")
+        
         if prev_review_path.exists():
             with open(prev_review_path, 'r') as f:
                 previous_context["previousPlanOutcome"] = json.load(f)
+            print("✅ Loaded review_scores.json")
+        else:
+            print("⚠️  review_scores.json not found")
         
         print(f"✅ Successfully loaded previous session data from {session_path.name}")
         return previous_context
         
     except Exception as e:
         print(f"Warning: Could not load session data from {session_path}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def create_fallback_previous_context():
