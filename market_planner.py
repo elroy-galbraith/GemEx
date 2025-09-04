@@ -43,6 +43,7 @@ DATE_OUTPUT_DIR = OUTPUT_DIR / CURRENT_DATE
 DATA_PACKET_PATH = DATE_OUTPUT_DIR / "viper_packet.json"
 PLAN_OUTPUT_PATH = DATE_OUTPUT_DIR / "trade_plan.md"
 REVIEW_OUTPUT_PATH = DATE_OUTPUT_DIR / "review_scores.json"
+MT5_ALERTS_PATH = DATE_OUTPUT_DIR / "mt5_alerts.json"
 
 # --- Market Symbols ---
 SYMBOLS = {
@@ -190,6 +191,15 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         with open(review_scores_path, 'r') as f:
             review_scores = json.load(f)
         
+        # Read MT5 alerts if available
+        mt5_alerts_count = 0
+        try:
+            with open(MT5_ALERTS_PATH, 'r') as f:
+                mt5_alerts = json.load(f)
+                mt5_alerts_count = mt5_alerts.get('metadata', {}).get('total_alerts', 0)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+        
         # Extract key information
         current_price = data_packet["marketSnapshot"]["currentPrice"]
         current_time = data_packet["marketSnapshot"]["currentTimeUTC"]
@@ -216,6 +226,9 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
             f"<b>📈 Analysis Scores</b>\n"
             f"• Plan Quality: {quality_score}/10\n"
             f"• Confidence: {confidence_score}/10\n\n"
+            f"<b>🔔 MT5 Price Alerts</b>\n"
+            f"• Generated {mt5_alerts_count} alerts for key levels\n"
+            f"• Available in mt5_alerts.json\n\n"
             f"<b>🎯 Decision</b>\n"
         )
 
@@ -1072,6 +1085,89 @@ def convert_analysis_to_json(analysis_text: str) -> str:
             "suggestions": ["Reviewer output could not be parsed"]
         }, indent=2)
 
+def extract_mt5_alerts_from_plan(trade_plan_text, current_price):
+    """Extract price levels from trading plan and generate MT5 alerts JSON."""
+    alerts = []
+    
+    # Helper function to create alert object
+    def create_alert(price, condition, comment, category, priority="medium"):
+        return {
+            "symbol": "EURUSD",
+            "price": float(price),
+            "condition": condition,
+            "action": "notification",
+            "enabled": True,
+            "comment": comment,
+            "category": category,
+            "priority": priority
+        }
+    
+    # Extract price levels using regex patterns
+    import re
+    
+    # Look for explicit price patterns in the trading plan
+    price_patterns = [
+        (r"Entry.*?(\d+\.\d{4,5})", "entry", "high"),
+        (r"Stop Loss.*?(\d+\.\d{4,5})", "exit", "high"), 
+        (r"Take Profit.*?(\d+\.\d{4,5})", "exit", "high"),
+        (r"TP1.*?(\d+\.\d{4,5})", "exit", "high"),
+        (r"TP2.*?(\d+\.\d{4,5})", "exit", "medium"),
+        (r"Upper Bound.*?(\d+\.\d{4,5})", "level", "medium"),
+        (r"Lower Bound.*?(\d+\.\d{4,5})", "level", "medium"),
+        (r"Major Resistance.*?(\d+\.\d{4,5})", "level", "medium"),
+        (r"Major Support.*?(\d+\.\d{4,5})", "level", "medium"),
+        (r"Bull/Bear Pivot.*?(\d+\.\d{4,5})", "level", "high"),
+        (r"Primary Value Zone.*?(\d+\.\d{4,5})", "level", "medium")
+    ]
+    
+    for pattern, category, priority in price_patterns:
+        matches = re.findall(pattern, trade_plan_text, re.IGNORECASE)
+        for match in matches:
+            try:
+                price_level = float(match)
+                
+                # Determine alert condition based on current price
+                if price_level > current_price:
+                    condition = "bid_above"
+                    direction = "above"
+                else:
+                    condition = "bid_below" 
+                    direction = "below"
+                
+                # Create descriptive comment based on category
+                if category == "entry":
+                    comment = f"Entry signal triggered {direction} {price_level}"
+                elif category == "exit":
+                    comment = f"Exit level reached {direction} {price_level}"
+                else:
+                    comment = f"Key level {direction} {price_level}"
+                
+                alerts.append(create_alert(price_level, condition, comment, category, priority))
+                
+            except ValueError:
+                continue
+    
+    # Remove duplicates based on price level
+    seen_prices = set()
+    unique_alerts = []
+    for alert in alerts:
+        if alert["price"] not in seen_prices:
+            seen_prices.add(alert["price"])
+            unique_alerts.append(alert)
+    
+    # Sort alerts by price level
+    unique_alerts.sort(key=lambda x: x["price"])
+    
+    return {
+        "alerts": unique_alerts,
+        "metadata": {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "symbol": "EURUSD",
+            "current_price": current_price,
+            "total_alerts": len(unique_alerts)
+        }
+    }
+
 def run_viper_coil(viper_packet):
     """Executes the Planner -> Reviewer LLM pipeline."""
     
@@ -1127,6 +1223,42 @@ def run_viper_coil(viper_packet):
         with open(REVIEW_OUTPUT_PATH, 'w') as f:
             json.dump(review_scores, f, indent=2)
         print(f"✅ Scores parsed and saved to: {REVIEW_OUTPUT_PATH.name}")
+
+        # --- Step 4: Generate MT5 Alerts ---
+        print("\n--- STAGE 4: GENERATING MT5 ALERTS ---")
+        try:
+            current_price = viper_packet["marketSnapshot"]["currentPrice"]
+            mt5_alerts = extract_mt5_alerts_from_plan(trade_plan_md, current_price)
+            
+            with open(MT5_ALERTS_PATH, 'w') as f:
+                json.dump(mt5_alerts, f, indent=2)
+            print(f"✅ MT5 alerts generated and saved to: {MT5_ALERTS_PATH.name}")
+            print(f"📊 Generated {mt5_alerts['metadata']['total_alerts']} price alerts")
+            
+            # Display key alerts summary
+            if mt5_alerts['alerts']:
+                print("\n--- KEY PRICE ALERTS ---")
+                for alert in mt5_alerts['alerts'][:5]:  # Show first 5 alerts
+                    print(f"🔔 {alert['price']:.5f} - {alert['comment']} ({alert['category']})")
+                if len(mt5_alerts['alerts']) > 5:
+                    print(f"... and {len(mt5_alerts['alerts']) - 5} more alerts")
+                print()
+        except Exception as e:
+            print(f"⚠️  Error generating MT5 alerts: {e}")
+            # Create minimal fallback alerts file
+            fallback_alerts = {
+                "alerts": [],
+                "metadata": {
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "symbol": "EURUSD",
+                    "current_price": viper_packet.get("marketSnapshot", {}).get("currentPrice", 0),
+                    "total_alerts": 0,
+                    "error": str(e)
+                }
+            }
+            with open(MT5_ALERTS_PATH, 'w') as f:
+                json.dump(fallback_alerts, f, indent=2)
+            print(f"⚠️  Fallback alerts file saved to: {MT5_ALERTS_PATH.name}")
 
         quality = review_scores['planQualityScore']['score']
         confidence = review_scores['confidenceScore']['score']

@@ -137,7 +137,57 @@ PLANNER_SYSTEM_PROMPT = """
   - No emotional chaining: "A win doesn't make the next trade more likely to be a loser."
   - No revenge trading: "A loss doesn't make the next trade a 'due' win."
 
-  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly.
+  6. MT5 Price Alert Setup
+  
+  **CRITICAL: Generate both human-readable instructions AND structured data for MT5 price alerts.**
+  
+  Create a comprehensive alert system covering ALL key levels identified in your analysis. For each alert, provide:
+  
+  **Alert Instructions (Human-Readable):**
+  
+  Primary Entry Alerts:
+  - "Set BUY STOP alert at [ENTRY_PRICE] with comment 'Plan A Entry - [JUSTIFICATION]'"
+  - "Set SELL STOP alert at [ENTRY_PRICE] with comment 'Plan B Entry - [JUSTIFICATION]'"
+  
+  Risk Management Alerts:
+  - "Set alert at [SL_PRICE] with comment 'Stop Loss Hit - Plan A'"
+  - "Set alert at [TP1_PRICE] with comment 'Take Profit 1 - Close 50%'"
+  - "Set alert at [TP2_PRICE] with comment 'Take Profit 2 - Close Remaining'"
+  
+  Key Level Alerts:
+  - "Set alert at [UPPER_BOUND] with comment 'Major Resistance Test'"
+  - "Set alert at [LOWER_BOUND] with comment 'Major Support Test'"
+  - "Set alert at [BULL_BEAR_PIVOT] with comment 'Bull/Bear Pivot Break'"
+  
+  **MT5 Alert Data Structure (JSON):**
+  
+  Also provide a structured JSON object with the following format for each alert:
+  ```json
+  {
+    "alerts": [
+      {
+        "symbol": "EURUSD",
+        "price": 1.1234,
+        "condition": "bid_above|bid_below|ask_above|ask_below",
+        "action": "notification",
+        "enabled": true,
+        "comment": "Plan A Entry - Value Zone Retest",
+        "category": "entry|exit|level",
+        "priority": "high|medium|low"
+      }
+    ]
+  }
+  ```
+  
+  **Usage Instructions:**
+  Provide step-by-step MT5 setup instructions:
+  1. Right-click on EURUSD chart
+  2. Select "Trading" → "New Order" → "Buy Stop" or "Sell Stop"
+  3. Set the price levels as specified
+  4. Enable alerts in Terminal → Alerts tab
+  5. Copy the alert comment exactly as provided
+  
+  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly. Use the MT5 alerts to monitor all key levels without emotion."
 """
 
 REVIEWER_SYSTEM_PROMPT = """

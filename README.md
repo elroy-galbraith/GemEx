@@ -34,7 +34,8 @@ GemEx/
 │   ├── YYYY_MM_DD/          # Date-based subdirectories
 │   │   ├── viper_packet.json # Raw market data analysis
 │   │   ├── trade_plan.md     # Generated trading strategy
-│   │   └── review_scores.json # AI quality assessment
+│   │   ├── review_scores.json # AI quality assessment
+│   │   └── mt5_alerts.json   # MT5 price alert instructions
 │   └── [current session files]
 └── gemx_venv/                # Python virtual environment
 ```
@@ -167,6 +168,49 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
   "confidenceScore": { "score": 6, "justification": "..." }
 }
 ```
+
+#### MT5 Price Alerts (`mt5_alerts.json`)
+```json
+{
+  "alerts": [
+    {
+      "symbol": "EURUSD",
+      "price": 1.1234,
+      "condition": "bid_above|bid_below|ask_above|ask_below",
+      "action": "notification",
+      "enabled": true,
+      "comment": "Plan A Entry - Value Zone Retest",
+      "category": "entry|exit|level",
+      "priority": "high|medium|low"
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-01-03T10:00:00.000Z",
+    "symbol": "EURUSD",
+    "current_price": 1.1200,
+    "total_alerts": 8
+  }
+}
+```
+
+The MT5 alerts file contains:
+- **Structured alert data** for automated import into MetaTrader 5
+- **Entry/exit signals** for both Plan A and Plan B setups
+- **Key level alerts** for support, resistance, and pivot points
+- **Human-readable comments** for each alert with justification
+- **Priority levels** to help focus on the most important alerts
+
+### Using MT5 Alerts
+
+1. **Manual Setup in MT5:**
+   - Right-click on EURUSD chart → Trading → New Order
+   - Set Buy Stop/Sell Stop at specified price levels
+   - Copy alert comments exactly as provided in the trading plan
+
+2. **Automated Import (Advanced):**
+   - Use MT5 Expert Advisor to read the JSON file
+   - Automatically create price alerts from the structured data
+   - Enable audio/visual notifications for alert triggers
 
 ## 🔧 Configuration
 
