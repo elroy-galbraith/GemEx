@@ -65,6 +65,8 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # TEMPORARY: Force fresh start for first few runs after merge - remove this line later
+        FORCE_FRESH_START: 'true'
       run: |
         python market_planner.py
         

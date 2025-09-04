@@ -455,6 +455,11 @@ def download_previous_session_artifacts():
     """Download previous session data from GitHub Actions artifacts or remote storage."""
     print("Attempting to download previous session data...")
     
+    # TEMPORARY: Force fresh start - remove this after a few successful runs
+    if os.environ.get('FORCE_FRESH_START') == 'true':
+        print("🚀 FORCE_FRESH_START enabled - skipping previous session download")
+        return None
+    
     # Check if we're running in GitHub Actions
     if os.environ.get('GITHUB_ACTIONS'):
         print("Running in GitHub Actions - attempting to download previous artifacts...")
