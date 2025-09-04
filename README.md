@@ -179,7 +179,7 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
       "condition": "bid_above|bid_below|ask_above|ask_below",
       "action": "notification",
       "enabled": true,
-      "comment": "Plan A Entry - Value Zone Retest",
+      "comment": "Plan A Entry Level Reached - Value Zone Retest",
       "category": "entry|exit|level",
       "priority": "high|medium|low"
     }
@@ -194,23 +194,27 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
 ```
 
 The MT5 alerts file contains:
-- **Structured alert data** for automated import into MetaTrader 5
-- **Entry/exit signals** for both Plan A and Plan B setups
+- **Structured price alert data** for import into MetaTrader 5
+- **Entry/exit level notifications** for both Plan A and Plan B setups
 - **Key level alerts** for support, resistance, and pivot points
 - **Human-readable comments** for each alert with justification
-- **Priority levels** to help focus on the most important alerts
+- **Priority levels** to help focus on the most important price levels
 
-### Using MT5 Alerts
+### Using MT5 Price Alerts
 
 1. **Manual Setup in MT5:**
-   - Right-click on EURUSD chart → Trading → New Order
-   - Set Buy Stop/Sell Stop at specified price levels
+   - Open MT5 Terminal → Tools → Options → Events
+   - Enable "Alert" sound notifications
+   - In Navigator panel → right-click "Alerts" → "Create"
+   - Set Symbol: EURUSD, Condition: "Bid >" or "Bid <", Value: price level
+   - Set Action: "Sound" and/or "Notification"
    - Copy alert comments exactly as provided in the trading plan
 
 2. **Automated Import (Advanced):**
    - Use MT5 Expert Advisor to read the JSON file
    - Automatically create price alerts from the structured data
-   - Enable audio/visual notifications for alert triggers
+   - Enable audio/visual notifications when price levels are reached
+   - **Note: These are alerts only - no automatic trading**
 
 ## 🔧 Configuration
 

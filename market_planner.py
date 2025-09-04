@@ -1136,11 +1136,11 @@ def extract_mt5_alerts_from_plan(trade_plan_text, current_price):
                 
                 # Create descriptive comment based on category
                 if category == "entry":
-                    comment = f"Entry signal triggered {direction} {price_level}"
+                    comment = f"Entry level reached {direction} {price_level} - Consider manual entry"
                 elif category == "exit":
-                    comment = f"Exit level reached {direction} {price_level}"
+                    comment = f"Exit level reached {direction} {price_level} - Consider manual exit"
                 else:
-                    comment = f"Key level {direction} {price_level}"
+                    comment = f"Key level {direction} {price_level} - Monitor price action"
                 
                 alerts.append(create_alert(price_level, condition, comment, category, priority))
                 

@@ -141,23 +141,23 @@ PLANNER_SYSTEM_PROMPT = """
   
   **CRITICAL: Generate both human-readable instructions AND structured data for MT5 price alerts.**
   
-  Create a comprehensive alert system covering ALL key levels identified in your analysis. For each alert, provide:
+  Create a comprehensive alert system covering ALL key levels identified in your analysis. These are PRICE ALERTS (notifications), NOT trade orders. For each alert, provide:
   
   **Alert Instructions (Human-Readable):**
   
-  Primary Entry Alerts:
-  - "Set BUY STOP alert at [ENTRY_PRICE] with comment 'Plan A Entry - [JUSTIFICATION]'"
-  - "Set SELL STOP alert at [ENTRY_PRICE] with comment 'Plan B Entry - [JUSTIFICATION]'"
+  Primary Entry Level Alerts:
+  - "Set price alert at [ENTRY_PRICE] with comment 'Plan A Entry Level Reached - [JUSTIFICATION]'"
+  - "Set price alert at [ENTRY_PRICE] with comment 'Plan B Entry Level Reached - [JUSTIFICATION]'"
   
-  Risk Management Alerts:
-  - "Set alert at [SL_PRICE] with comment 'Stop Loss Hit - Plan A'"
-  - "Set alert at [TP1_PRICE] with comment 'Take Profit 1 - Close 50%'"
-  - "Set alert at [TP2_PRICE] with comment 'Take Profit 2 - Close Remaining'"
+  Risk Management Level Alerts:
+  - "Set price alert at [SL_PRICE] with comment 'Stop Loss Level Hit - Plan A'"
+  - "Set price alert at [TP1_PRICE] with comment 'Take Profit 1 Level - Consider Partial Close'"
+  - "Set price alert at [TP2_PRICE] with comment 'Take Profit 2 Level - Consider Full Close'"
   
-  Key Level Alerts:
-  - "Set alert at [UPPER_BOUND] with comment 'Major Resistance Test'"
-  - "Set alert at [LOWER_BOUND] with comment 'Major Support Test'"
-  - "Set alert at [BULL_BEAR_PIVOT] with comment 'Bull/Bear Pivot Break'"
+  Key Level Monitoring Alerts:
+  - "Set price alert at [UPPER_BOUND] with comment 'Major Resistance Level Test'"
+  - "Set price alert at [LOWER_BOUND] with comment 'Major Support Level Test'"
+  - "Set price alert at [BULL_BEAR_PIVOT] with comment 'Bull/Bear Pivot Level Break'"
   
   **MT5 Alert Data Structure (JSON):**
   
@@ -171,7 +171,7 @@ PLANNER_SYSTEM_PROMPT = """
         "condition": "bid_above|bid_below|ask_above|ask_below",
         "action": "notification",
         "enabled": true,
-        "comment": "Plan A Entry - Value Zone Retest",
+        "comment": "Plan A Entry Level Reached - Value Zone Retest",
         "category": "entry|exit|level",
         "priority": "high|medium|low"
       }
@@ -180,14 +180,18 @@ PLANNER_SYSTEM_PROMPT = """
   ```
   
   **Usage Instructions:**
-  Provide step-by-step MT5 setup instructions:
-  1. Right-click on EURUSD chart
-  2. Select "Trading" → "New Order" → "Buy Stop" or "Sell Stop"
-  3. Set the price levels as specified
-  4. Enable alerts in Terminal → Alerts tab
-  5. Copy the alert comment exactly as provided
+  Provide step-by-step MT5 price alert setup instructions:
+  1. Open MT5 Terminal → Tools → Options → Events
+  2. Enable "Alert" sound notifications
+  3. In Navigator panel → right-click "Alerts" → "Create"
+  4. Set Symbol: EURUSD
+  5. Set Condition: "Bid >" or "Bid <" based on price direction
+  6. Set Value: the specified price level
+  7. Set Action: "Sound" and/or "Notification"
+  8. Copy the alert comment exactly as provided
+  9. Click "OK" to create the alert
   
-  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly. Use the MT5 alerts to monitor all key levels without emotion."
+  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly. Use the MT5 price alerts to monitor all key levels without emotion and make manual trading decisions when alerted."
 """
 
 REVIEWER_SYSTEM_PROMPT = """
