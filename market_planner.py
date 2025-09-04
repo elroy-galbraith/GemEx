@@ -20,10 +20,15 @@ load_dotenv()
 # To run locally, set your API key as an environment variable:
 # export GOOGLE_API_KEY="your_api_key_here"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") #, userdata.get('GEMINI_API_KEY'))
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY not found. Please set it as an environment variable.")
-genai.configure(api_key=GEMINI_API_KEY)
-MODEL_NAME = "gemini-1.5-pro-latest"
+
+# Only configure Gemini if we're actually running the main analysis
+# This allows testing modules to import without requiring the API key
+def configure_gemini():
+    """Configure Gemini API - only call this when actually needed."""
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not found. Please set it as an environment variable.")
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel("gemini-1.5-pro-latest")
 
 # --- Telegram Configuration ---
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -794,7 +799,7 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
     """A simple wrapper for calling the Gemini model."""
     print("...")
     try:
-        model = genai.GenerativeModel(MODEL_NAME, system_instruction=system_prompt)
+        model = configure_gemini()
         response = model.generate_content(user_prompt)
         return response.text.strip()
     except Exception as e:
