@@ -510,7 +510,7 @@ def download_from_github_artifacts():
             extract_path = Path(extract_dir)
             print(f"Extracted contents: {list(extract_path.iterdir())}")
             
-            # Look for trading_session directory
+            # Look for trading_session directory first (expected structure)
             trading_session_path = extract_path / "trading_session"
             if trading_session_path.exists():
                 print(f"Found trading_session directory: {list(trading_session_path.iterdir())}")
@@ -531,6 +531,24 @@ def download_from_github_artifacts():
                         print("No session directories found in trading_session")
             else:
                 print("No trading_session directory found in artifact")
+                
+                # Check if date folders are directly in the root (alternative structure)
+                session_dirs = list(extract_path.glob("20*"))
+                if session_dirs:
+                    print(f"Found date directories directly in artifact: {[d.name for d in session_dirs]}")
+                    
+                    # Look for yesterday's session data
+                    yesterday_dir = extract_path / yesterday
+                    if yesterday_dir.exists():
+                        print(f"Found yesterday's session: {yesterday_dir}")
+                        return load_session_data_from_path(yesterday_dir)
+                    else:
+                        # Use the most recent session
+                        latest_session = max(session_dirs, key=lambda x: x.name)
+                        print(f"Using most recent session data: {latest_session.name}")
+                        return load_session_data_from_path(latest_session)
+                else:
+                    print("No date directories found in artifact")
         
         # Clean up
         os.unlink(tmp_file_path)
