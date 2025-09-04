@@ -91,9 +91,11 @@ def _send_single_message(message, parse_mode):
     # If Markdown parsing fails, fall back to plain text
     data = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": parse_mode
+        "text": message
     }
+    # Only include parse_mode when explicitly using a supported format
+    if parse_mode in ["Markdown", "HTML"]:
+        data["parse_mode"] = parse_mode
     
     try:
         response = requests.post(url, data=data, timeout=10)
@@ -159,8 +161,11 @@ def _send_split_messages(message, parse_mode, max_length):
     for i, chunk in enumerate(chunks, 1):
         if parse_mode == "HTML":
             chunk_header = f"<b>📄 Part {i} of {len(chunks)}</b>\n\n"
-        else:
+        elif parse_mode == "Markdown":
             chunk_header = f"📄 *Part {i} of {len(chunks)}*\n\n"
+        else:
+            # Plain text header when no parse mode is used
+            chunk_header = f"📄 Part {i} of {len(chunks)}\n\n"
         full_chunk = chunk_header + chunk
         
         if _send_single_message(full_chunk, parse_mode):
@@ -221,12 +226,15 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         else:
             message += "🔴 <b>NO-GO</b> - DISCARD PLAN - Quality or Confidence too low"
 
-        message += (
-            f"\n\n<b>📋 Complete Trade Plan</b>\n"
-            f"<pre><code>{safe_plan}</code></pre>"
-        )
-
-        return send_telegram_message(message, parse_mode="HTML")
+        # Send the summary first in HTML
+        summary_sent = send_telegram_message(message, parse_mode="HTML")
+        
+        # Then send the full plan separately as plain text to avoid HTML entity issues in long chunks
+        plan_header = "📋 Complete Trade Plan\n\n"
+        plan_sent = send_telegram_message(plan_header + trade_plan, parse_mode="Markdown") or \
+                    send_telegram_message(plan_header + trade_plan)
+        
+        return summary_sent and plan_sent
         
     except Exception as e:
         print(f"❌ Error creating Telegram summary: {e}")
@@ -916,7 +924,7 @@ def clean_json_output(raw_output: str) -> str:
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
         cleaned = cleaned[start_idx:end_idx + 1]
     else:
-        # If no JSON found, only convert when this looks like a reviewer analysis
+        # If no JSON found, attempt conversion when this looks like a reviewer analysis
         if is_reviewer_analysis_text(raw_output):
             return convert_analysis_to_json(raw_output)
         # Otherwise, return original text unchanged
@@ -942,7 +950,10 @@ def is_reviewer_analysis_text(analysis_text: str) -> bool:
         "overall:",
         "strengths:",
         "weaknesses:",
-        "suggestions for improvement:"
+        "suggestions for improvement:",
+        "plan quality score:",
+        "confidence score:",
+        "analysis and scores"
     ]
     return any(cue in lowered for cue in cues)
 
@@ -971,6 +982,10 @@ def convert_analysis_to_json(analysis_text: str) -> str:
         data_packet_val, data_packet_den = find_score(r'(?:Data Packet Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
         trade_plan_val, trade_plan_den = find_score(r'(?:Trade Plan Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
 
+        # Pattern C: Plan Quality Score, Confidence Score (x/5 or x/10)
+        plan_quality_val_c, plan_quality_den_c = find_score(r'(?:Plan Quality Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+        confidence_val_c, confidence_den_c = find_score(r'(?:Confidence Score:)\s*(\d+(?:\.\d+)?)/(\d+)?')
+
         def to_ten_scale(value: float | None, denom: float | None) -> int | None:
             if value is None:
                 return None
@@ -991,6 +1006,12 @@ def convert_analysis_to_json(analysis_text: str) -> str:
         # Fall back to Trade Plan Score for quality if not found
         if plan_quality_10 is None and trade_plan_val is not None:
             plan_quality_10 = to_ten_scale(trade_plan_val, trade_plan_den)
+
+        # Fall back to explicit Plan Quality / Confidence if present
+        if plan_quality_10 is None and plan_quality_val_c is not None:
+            plan_quality_10 = to_ten_scale(plan_quality_val_c, plan_quality_den_c)
+        if confidence_10 is None and confidence_val_c is not None:
+            confidence_10 = to_ten_scale(confidence_val_c, confidence_den_c)
 
         # Fall back to Data Packet Score or plan quality for confidence if not found
         if confidence_10 is None:
