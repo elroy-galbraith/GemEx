@@ -893,7 +893,12 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
     print("...")
     try:
         model = configure_gemini()
-        response = model.generate_content(user_prompt)
+        
+        # Combine system prompt and user prompt for Gemini
+        # Gemini doesn't have separate system/user roles like OpenAI, so we combine them
+        full_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
+        
+        response = model.generate_content(full_prompt)
         return response.text.strip()
     except Exception as e:
         print(f"An error occurred during the LLM call: {e}")
