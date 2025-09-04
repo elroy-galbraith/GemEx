@@ -1,0 +1,107 @@
+---
+description: Trading system specific rules and patterns for GemEx
+---
+
+# Trading System Rules for GemEx
+
+## Viper Persona and Terminology
+
+- Always maintain the "Viper" codename and persona in documentation and comments
+- Use professional trading terminology (e.g., "playbook", "execution", "confluence")
+- Frame analysis in terms of probabilities and risk management
+- Use military/precision language when appropriate
+
+## Risk Management Principles
+
+- **Minimum Risk/Reward Ratio**: All trades must have 2.5:1 or greater R:R ratio
+- **Position Sizing**: Risk 0.75% on Plan A, 0.5% on Plan B
+- **Maximum Daily Loss**: 1.25% of capital
+- **Stop Loss Management**: Move to breakeven at first profit target
+- **Partial Profit Taking**: Close 50% at TP1
+
+## Technical Analysis Standards
+
+### Indicator Calculations
+- Use 50 and 200 period EMAs for trend analysis
+- Use 14-period RSI for momentum
+- Use 14-period ATR for volatility measurement
+- Calculate support/resistance using peak detection algorithms
+
+### Timeframe Analysis
+- **Daily**: Primary trend direction and major levels
+- **H4**: Intermediate trend and key zones
+- **H1**: Entry timing and short-term structure
+
+### Level Justification Requirements
+Every support/resistance level must include:
+- Technical justification (e.g., "Weekly Support", "4H Order Block")
+- Confluence factors (e.g., "50% Fib Retracement")
+- Historical significance
+
+## Trading Plan Structure
+
+### Required Components
+1. **Daily Market Thesis**: Primary directional bias with narrative
+2. **Key Levels**: Upper bound, lower bound, bull/bear pivot, value zone
+3. **Plan A**: Primary trade idea with full entry/exit protocol
+4. **Plan B**: Contingency trade idea
+5. **Risk Protocols**: Capital allocation and trade management rules
+
+### Entry Protocol Format
+```markdown
+Condition: "Price must first pull back into the Primary Value Zone (X.XXXX - X.XXXX)."
+Trigger: "Execute on a 15-minute chart bullish engulfing candle OR break and retest."
+Stop Loss: Price (X.XXXX). Justification: "Placed 10 pips below the low of the Value Zone."
+Take Profit 1: Price (X.XXXX). Justification: "Targets nearest liquidity pool."
+Take Profit 2: Price (X.XXXX). Justification: "Final target at Daily Major Resistance."
+Risk/Reward: Calculated ratio (e.g., 1:3.2).
+```
+
+## AI Integration Standards
+
+### Prompt Engineering
+- Use structured prompts with clear personas
+- Include specific output format requirements
+- Provide context about trading principles and risk management
+- Use examples to guide AI behavior
+
+### Quality Assessment
+- Plan Quality Score: Objective assessment (1-10) based on structure, rationale, R:R, contingencies
+- Confidence Score: Subjective "gut feel" (1-10) based on price action, confluence, timing
+- Decision Matrix: Green (≥6 both), Yellow (Quality ≥6, Confidence <6), Red (<6 either)
+
+## Data Validation
+
+### Market Data Requirements
+- Minimum 200 data points for reliable analysis
+- Handle missing columns gracefully
+- Validate data quality before processing
+- Use appropriate timeframes for different analyses
+
+### Economic Calendar Integration
+- Filter for high-impact events only
+- Focus on EUR/USD relevant events
+- Use UTC timezone for consistency
+- Handle calendar parsing errors gracefully
+
+## Output Standards
+
+### JSON Structure
+- Use consistent field naming (camelCase for JSON)
+- Include timestamps in ISO format
+- Provide both raw values and calculated metrics
+- Structure data hierarchically by timeframe
+
+### Markdown Reports
+- Use clear section headers
+- Include emoji indicators for visual clarity
+- Provide specific price levels with justifications
+- Use bullet points for easy scanning
+
+## Error Handling in Trading Context
+
+- Never proceed with invalid market data
+- Log all trading decisions with timestamps
+- Handle API failures gracefully with fallback data
+- Validate all calculations before execution
+- Provide clear error messages for debugging

@@ -1,0 +1,93 @@
+---
+globs: *.py
+description: Python coding standards and patterns for GemEx
+---
+
+# Python Coding Standards for GemEx
+
+## Code Style and Formatting
+
+- Use **snake_case** for function and variable names
+- Use **UPPER_CASE** for constants and configuration variables
+- Use **PascalCase** for class names
+- Follow PEP 8 guidelines with 4-space indentation
+- Maximum line length: 100 characters
+- Use type hints where appropriate
+
+## Import Organization
+
+```python
+# Standard library imports first
+import os
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+# Third-party imports
+import pandas as pd
+import numpy as np
+import yfinance as yf
+
+# Local imports
+from prompts import PLANNER_SYSTEM_PROMPT, REVIEWER_SYSTEM_PROMPT
+```
+
+## Function Documentation
+
+All functions must have docstrings following this format:
+
+```python
+def calculate_ema(data, length):
+    """Calculate Exponential Moving Average.
+    
+    Args:
+        data: pandas Series of price data
+        length: Period for EMA calculation
+        
+    Returns:
+        pandas Series: EMA values
+    """
+```
+
+## Error Handling
+
+- Use try-except blocks for external API calls and file operations
+- Provide meaningful error messages with context
+- Log errors with appropriate severity levels
+- Handle missing data gracefully with fallback values
+
+## Configuration Management
+
+- Store all configuration at the top of files in a dedicated section
+- Use environment variables for sensitive data (API keys)
+- Use constants for non-sensitive configuration
+- Document all configuration options
+
+## Data Processing Patterns
+
+- Always validate data before processing
+- Use pandas for data manipulation
+- Handle MultiIndex columns properly
+- Drop NaN values explicitly when appropriate
+- Use `.copy()` when modifying DataFrames to avoid warnings
+
+## API Integration
+
+- Implement retry logic for external API calls
+- Use timeouts for all HTTP requests
+- Handle rate limiting gracefully
+- Validate API responses before processing
+
+## File Operations
+
+- Use `pathlib.Path` for cross-platform path handling
+- Create directories with `mkdir(exist_ok=True)`
+- Use context managers for file operations
+- Handle file encoding explicitly (UTF-8)
+
+## Performance Considerations
+
+- Use vectorized operations with pandas/numpy
+- Avoid loops when possible
+- Cache expensive calculations
+- Use appropriate data types to save memory

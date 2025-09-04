@@ -1,0 +1,244 @@
+---
+description: Data handling patterns and standards for GemEx
+---
+
+# Data Handling Rules for GemEx
+
+## Market Data Management
+
+### Data Sources and APIs
+- **Primary Source**: Yahoo Finance via yfinance library
+- **Economic Calendar**: Forex Factory web scraping
+- **Data Validation**: Always validate data quality before processing
+- **Fallback Handling**: Implement graceful degradation for API failures
+
+### Data Structure Standards
+
+#### Market Data Schema
+```python
+MARKET_DATA_SCHEMA = {
+    "marketSnapshot": {
+        "pair": str,           # e.g., "EURUSD"
+        "currentPrice": float, # Current market price
+        "currentTimeUTC": str  # ISO timestamp
+    },
+    "multiTimeframeAnalysis": {
+        "Daily": TimeframeAnalysis,
+        "H4": TimeframeAnalysis,
+        "H1": TimeframeAnalysis
+    },
+    "volatilityMetrics": {
+        "atr_14_daily_pips": int,
+        "predictedDailyRange": [float, float]
+    },
+    "fundamentalAnalysis": {
+        "keyEconomicEvents": [EconomicEvent]
+    },
+    "intermarketConfluence": {
+        "DXY_trend": str,
+        "US10Y_trend": str,
+        "EURJPY_trend": str,
+        "SPX500_trend": str
+    }
+}
+```
+
+### Data Validation Patterns
+
+#### Input Validation
+```python
+def validate_market_data(data):
+    """Validate market data structure and content."""
+    required_fields = ["marketSnapshot", "multiTimeframeAnalysis"]
+    
+    for field in required_fields:
+        if field not in data:
+            raise ValueError(f"Missing required field: {field}")
+    
+    # Validate price data
+    price = data["marketSnapshot"]["currentPrice"]
+    if not isinstance(price, (int, float)) or price <= 0:
+        raise ValueError("Invalid price data")
+    
+    return True
+```
+
+#### Data Quality Checks
+- Verify minimum data points (200+ for reliable analysis)
+- Check for missing or null values
+- Validate data types and ranges
+- Ensure chronological order of time series data
+
+## Time Series Data Processing
+
+### DataFrame Handling
+```python
+def process_market_dataframe(df):
+    """Process market data DataFrame with proper validation."""
+    # Handle MultiIndex columns
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    
+    # Ensure required columns exist
+    required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    
+    if missing_columns:
+        handle_missing_columns(df, missing_columns)
+    
+    # Clean and validate data
+    df = df.dropna()
+    validate_price_data(df)
+    
+    return df
+```
+
+### Resampling and Aggregation
+```python
+def resample_to_timeframe(data, target_timeframe):
+    """Resample data to target timeframe with proper aggregation."""
+    agg_dict = {
+        'Open': 'first',
+        'High': 'max', 
+        'Low': 'min',
+        'Close': 'last',
+        'Volume': 'sum'
+    }
+    
+    return data.resample(target_timeframe).agg(agg_dict).dropna()
+```
+
+## Technical Indicator Calculations
+
+### Standard Indicators
+```python
+def calculate_technical_indicators(df):
+    """Calculate standard technical indicators."""
+    # Moving Averages
+    df['EMA_50'] = calculate_ema(df['Close'], 50)
+    df['EMA_200'] = calculate_ema(df['Close'], 200)
+    
+    # Momentum
+    df['RSI_14'] = calculate_rsi(df['Close'], 14)
+    
+    # Volatility
+    df['ATR_14'] = calculate_atr(df['High'], df['Low'], df['Close'], 14)
+    
+    return df
+```
+
+### Peak Detection for Support/Resistance
+```python
+def find_key_levels(df, lookback_period=180):
+    """Find key support and resistance levels using peak detection."""
+    recent_data = df.tail(lookback_period)
+    
+    # Find peaks and troughs
+    high_peaks, _ = find_peaks(recent_data['High'], distance=5, prominence=0.001)
+    low_peaks, _ = find_peaks(-recent_data['Low'], distance=5, prominence=0.001)
+    
+    # Extract top levels
+    resistance = sorted([round(p, 4) for p in recent_data['High'].iloc[high_peaks].nlargest(3).tolist()])
+    support = sorted([round(p, 4) for p in recent_data['Low'].iloc[low_peaks].nsmallest(3).tolist()])
+    
+    return support, resistance
+```
+
+## Economic Calendar Data
+
+### Web Scraping Standards
+```python
+def scrape_economic_calendar():
+    """Scrape economic calendar with proper error handling."""
+    try:
+        scraper = cloudscraper.create_scraper()
+        response = scraper.get(url, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        return parse_calendar_data(soup)
+        
+    except Exception as e:
+        logger.error(f"Failed to scrape economic calendar: {e}")
+        return []
+```
+
+### Event Filtering
+- Filter for high-impact events only
+- Focus on EUR/USD relevant currencies
+- Use UTC timezone for consistency
+- Validate event data structure
+
+## Data Storage and Persistence
+
+### File Organization
+```python
+def organize_session_data(date_str, data_packet, trade_plan, review_scores):
+    """Organize trading session data in date-based structure."""
+    session_dir = OUTPUT_DIR / date_str
+    session_dir.mkdir(exist_ok=True)
+    
+    # Save data files
+    save_json(session_dir / "viper_packet.json", data_packet)
+    save_markdown(session_dir / "trade_plan.md", trade_plan)
+    save_json(session_dir / "review_scores.json", review_scores)
+```
+
+### Data Serialization
+```python
+def save_json(file_path, data):
+    """Save data to JSON file with proper formatting."""
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+```
+
+## Error Handling and Recovery
+
+### Data Fetching Errors
+```python
+def fetch_market_data_with_retry(symbol, max_retries=3):
+    """Fetch market data with retry logic."""
+    for attempt in range(max_retries):
+        try:
+            return yf.download(symbol, period="2y", interval="1d")
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise ValueError(f"Failed to fetch data after {max_retries} attempts: {e}")
+            time.sleep(2 ** attempt)  # Exponential backoff
+```
+
+### Data Corruption Handling
+- Validate data integrity after fetching
+- Implement data repair mechanisms
+- Use backup data sources when available
+- Log all data quality issues
+
+## Performance Optimization
+
+### Data Caching
+```python
+def cache_market_data(symbol, data, cache_duration=300):
+    """Cache market data to avoid redundant API calls."""
+    cache_key = f"market_data_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    # Implement caching logic
+```
+
+### Memory Management
+- Use appropriate data types to minimize memory usage
+- Process data in chunks for large datasets
+- Clean up temporary DataFrames
+- Monitor memory usage during processing
+
+## Data Security and Privacy
+
+### Sensitive Data Handling
+- Never log sensitive market data
+- Use data anonymization for testing
+- Implement access controls for data files
+- Follow data retention policies
+
+### Backup and Recovery
+- Implement automated data backups
+- Test data recovery procedures
+- Maintain data versioning
+- Document data lineage and sources

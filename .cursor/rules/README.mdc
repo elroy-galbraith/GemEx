@@ -1,0 +1,117 @@
+---
+alwaysApply: true
+description: Overview of all GemEx Cursor rules and how to use them
+---
+
+# GemEx Cursor Rules Overview
+
+This directory contains comprehensive Cursor rules for the GemEx AI-powered forex trading analysis system. These rules help maintain code quality, consistency, and best practices across the project.
+
+## Rule Files
+
+### Core Rules (Always Applied)
+- **[project-structure.mdc](mdc:project-structure.mdc)** - Project architecture and structure guidelines
+- **[README.mdc](mdc:README.mdc)** - This overview file
+
+### Language-Specific Rules
+- **[python-standards.mdc](mdc:python-standards.mdc)** - Python coding standards and patterns (applies to `*.py` files)
+- **[testing-standards.mdc](mdc:testing-standards.mdc)** - Testing patterns and standards (applies to `test_*.py`, `*_test.py` files)
+
+### Domain-Specific Rules
+- **[trading-system.mdc](mdc:trading-system.mdc)** - Trading system specific rules and patterns
+- **[ai-integration.mdc](mdc:ai-integration.mdc)** - AI integration patterns and best practices
+- **[data-handling.mdc](mdc:data-handling.mdc)** - Data handling patterns and standards
+- **[environment-config.mdc](mdc:environment-config.mdc)** - Environment and configuration management
+
+## How to Use These Rules
+
+### For Developers
+1. **Automatic Application**: Rules with `alwaysApply: true` are automatically applied to every request
+2. **File-Specific Rules**: Rules with `globs` patterns apply only to matching files
+3. **Manual Application**: Rules with `description` can be manually referenced by the AI
+
+### Rule Categories
+
+#### Always Applied Rules
+- Project structure and architecture guidelines
+- Core development principles
+- Viper persona and trading terminology
+
+#### File-Specific Rules
+- **Python files** (`*.py`): Coding standards, import organization, error handling
+- **Test files** (`test_*.py`, `*_test.py`): Testing patterns, mocking, assertions
+
+#### Domain-Specific Rules
+- **Trading System**: Risk management, technical analysis, trading plan structure
+- **AI Integration**: Prompt engineering, response handling, quality assurance
+- **Data Handling**: Market data processing, validation, storage patterns
+- **Environment Config**: Setup, dependencies, security, monitoring
+
+## Key Principles
+
+### Trading System Philosophy
+- **Risk Management First**: Minimum 2.5:1 risk-reward ratios
+- **Data-Driven Decisions**: All analysis based on quantitative market data
+- **Multi-Timeframe Confirmation**: Daily, H4, and H1 alignment
+- **Viper Persona**: Professional, precise, zero-tolerance for ambiguity
+
+### Code Quality Standards
+- **Consistent Structure**: Follow established module organization
+- **Error Handling**: Graceful degradation and meaningful error messages
+- **Documentation**: Clear docstrings and inline comments
+- **Testing**: Comprehensive test coverage with realistic scenarios
+
+### AI Integration Best Practices
+- **Structured Prompts**: Clear personas and output format requirements
+- **Response Validation**: Parse and validate AI outputs
+- **Quality Assurance**: Monitor and improve AI response consistency
+- **Error Recovery**: Implement fallback strategies for AI failures
+
+## Development Workflow
+
+### Before Starting Development
+1. Review relevant rule files for the type of work you're doing
+2. Ensure environment is properly configured
+3. Run tests to verify current system state
+
+### During Development
+1. Follow coding standards and patterns from the rules
+2. Use established error handling patterns
+3. Maintain the Viper persona and trading terminology
+4. Validate data and AI responses appropriately
+
+### Before Committing
+1. Run all tests to ensure nothing is broken
+2. Check that new code follows established patterns
+3. Verify environment configuration is correct
+4. Ensure proper error handling is in place
+
+## Rule Maintenance
+
+### Updating Rules
+- Rules should evolve with the project
+- Add new patterns as they emerge
+- Remove outdated or conflicting guidelines
+- Keep rules focused and actionable
+
+### Rule Validation
+- Test rules with actual development scenarios
+- Ensure rules don't conflict with each other
+- Verify rules improve code quality and consistency
+- Document any rule changes and their rationale
+
+## Getting Help
+
+### Rule References
+- Use the `description` field to find relevant rules
+- Reference specific rule files when asking for help
+- Mention which rules apply to your current context
+
+### Common Scenarios
+- **Adding new features**: Check project-structure.mdc and relevant domain rules
+- **Writing tests**: Follow testing-standards.mdc patterns
+- **AI integration**: Use ai-integration.mdc guidelines
+- **Data processing**: Apply data-handling.mdc patterns
+- **Environment setup**: Follow environment-config.mdc procedures
+
+These rules are designed to help maintain the high quality and consistency that the GemEx trading system requires. Use them as a guide for all development work on the project.

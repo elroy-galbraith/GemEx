@@ -1,0 +1,188 @@
+---
+description: AI integration patterns and best practices for GemEx
+---
+
+# AI Integration Rules for GemEx
+
+## Gemini AI Integration
+
+### Model Configuration
+- Use `gemini-1.5-pro-latest` as the primary model
+- Configure API key via environment variable `GEMINI_API_KEY`
+- Implement proper error handling for API failures
+- Use system instructions for consistent AI behavior
+
+### Prompt Engineering Standards
+
+#### System Prompt Structure
+```python
+SYSTEM_PROMPT = """
+Persona: [Clear AI persona definition]
+Core Task: [Specific task description]
+Guiding Principles:
+- [Principle 1]
+- [Principle 2]
+- [Principle 3]
+
+[Detailed task requirements and output format]
+"""
+```
+
+#### User Prompt Patterns
+- Provide structured data in JSON format
+- Include context and background information
+- Specify exact output format requirements
+- Use clear, unambiguous language
+
+### AI Response Handling
+
+#### Response Validation
+```python
+def validate_ai_response(response_text, expected_format):
+    """Validate AI response format and content."""
+    if not response_text:
+        raise ValueError("Empty AI response")
+    
+    if expected_format == "json":
+        try:
+            json.loads(response_text)
+        except json.JSONDecodeError:
+            raise ValueError("Invalid JSON response")
+    
+    return True
+```
+
+#### Error Recovery
+- Implement fallback prompts for failed responses
+- Retry with simplified requests
+- Log AI interaction failures
+- Provide human-readable error messages
+
+## LLM Orchestration Patterns
+
+### Pipeline Architecture
+1. **Data Preparation**: Structure market data for AI consumption
+2. **Primary AI Call**: Generate trading plan with detailed prompt
+3. **Secondary AI Call**: Review and score the generated plan
+4. **Response Processing**: Parse and validate AI outputs
+5. **Decision Logic**: Apply business rules to AI scores
+
+### Prompt Chaining
+```python
+def run_ai_pipeline(data_packet):
+    """Execute the Planner -> Reviewer AI pipeline."""
+    # Step 1: Generate plan
+    planner_prompt = create_planner_prompt(data_packet)
+    trade_plan = call_llm(PLANNER_SYSTEM_PROMPT, planner_prompt)
+    
+    # Step 2: Review plan
+    reviewer_prompt = create_reviewer_prompt(data_packet, trade_plan)
+    review_scores = call_llm(REVIEWER_SYSTEM_PROMPT, reviewer_prompt)
+    
+    return trade_plan, review_scores
+```
+
+## AI Output Processing
+
+### JSON Response Parsing
+```python
+def parse_ai_json_response(response_text):
+    """Safely parse AI JSON response with error handling."""
+    # Remove markdown code blocks if present
+    if response_text.startswith("```json"):
+        response_text = response_text[7:-3].strip()
+    
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse AI JSON response: {e}")
+```
+
+### Content Validation
+- Validate required fields in AI responses
+- Check data types and ranges
+- Ensure business logic constraints are met
+- Provide meaningful error messages for invalid responses
+
+## AI Quality Assurance
+
+### Response Consistency
+- Use consistent prompt templates
+- Validate AI responses against expected schemas
+- Implement response caching for identical inputs
+- Monitor AI response quality over time
+
+### Bias Mitigation
+- Use neutral, objective language in prompts
+- Avoid leading questions or assumptions
+- Include diverse market scenarios in training data
+- Regularly review AI outputs for bias
+
+## Performance Optimization
+
+### Caching Strategies
+- Cache AI responses for identical market data
+- Implement intelligent cache invalidation
+- Use response compression for large outputs
+- Monitor cache hit rates and effectiveness
+
+### Rate Limiting
+- Implement exponential backoff for API failures
+- Respect API rate limits and quotas
+- Use request queuing for high-volume scenarios
+- Monitor API usage and costs
+
+## Security and Privacy
+
+### API Key Management
+- Store API keys in environment variables only
+- Never commit API keys to version control
+- Use different keys for different environments
+- Rotate API keys regularly
+
+### Data Privacy
+- Avoid sending sensitive personal data to AI services
+- Use data anonymization when possible
+- Implement data retention policies
+- Monitor AI service data usage policies
+
+## Monitoring and Logging
+
+### AI Interaction Logging
+```python
+def log_ai_interaction(prompt, response, execution_time):
+    """Log AI interactions for monitoring and debugging."""
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "prompt_length": len(prompt),
+        "response_length": len(response),
+        "execution_time": execution_time,
+        "model": MODEL_NAME
+    }
+    # Log to appropriate system
+```
+
+### Performance Metrics
+- Track AI response times
+- Monitor token usage and costs
+- Measure response quality scores
+- Alert on unusual patterns or failures
+
+## Error Handling Patterns
+
+### Graceful Degradation
+```python
+def call_llm_with_fallback(system_prompt, user_prompt):
+    """Call LLM with fallback error handling."""
+    try:
+        return call_llm(system_prompt, user_prompt)
+    except Exception as e:
+        logger.error(f"AI call failed: {e}")
+        return get_fallback_response()
+```
+
+### Retry Logic
+- Implement exponential backoff for transient failures
+- Set maximum retry attempts
+- Use different strategies for different error types
+- Log all retry attempts and outcomes

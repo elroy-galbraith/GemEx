@@ -1,0 +1,215 @@
+---
+globs: test_*.py,*_test.py
+description: Testing patterns and standards for GemEx
+---
+
+# Testing Standards for GemEx
+
+## Test File Organization
+
+- Use `test_` prefix for all test files
+- Mirror the structure of the main codebase
+- Group related tests in classes
+- Use descriptive test method names
+
+## Test Categories
+
+### Unit Tests
+- Test individual functions in isolation
+- Mock external dependencies (APIs, file system)
+- Focus on edge cases and error conditions
+- Validate input/output transformations
+
+### Integration Tests
+- Test complete workflows end-to-end
+- Use real data when possible
+- Validate data flow between components
+- Test error handling across modules
+
+### Environment Tests
+- Validate system dependencies
+- Check environment variable configuration
+- Test file system permissions
+- Verify API connectivity
+
+## Test Structure Patterns
+
+### Standard Test Class Structure
+```python
+import unittest
+from datetime import datetime, timezone
+
+class TestFeatureName(unittest.TestCase):
+    """Test cases for specific feature."""
+    
+    def setUp(self):
+        """Set up test fixtures before each test method."""
+        pass
+    
+    def tearDown(self):
+        """Clean up after each test method."""
+        pass
+    
+    def test_specific_behavior(self):
+        """Test specific behavior with descriptive name."""
+        # Arrange
+        # Act
+        # Assert
+        pass
+```
+
+### Date Testing Patterns
+- Use specific test dates for reproducible results
+- Test Linux date formatting (`%a %b %-d`)
+- Validate timezone handling (UTC)
+- Test edge cases (leap years, month boundaries)
+
+### Data Validation Testing
+```python
+def test_data_validation(self):
+    """Test data validation with various inputs."""
+    # Test valid data
+    valid_data = create_valid_test_data()
+    result = process_data(valid_data)
+    self.assertIsNotNone(result)
+    
+    # Test invalid data
+    invalid_data = create_invalid_test_data()
+    with self.assertRaises(ValueError):
+        process_data(invalid_data)
+```
+
+## Mocking and Test Doubles
+
+### External API Mocking
+```python
+from unittest.mock import patch, MagicMock
+
+@patch('yfinance.download')
+def test_market_data_fetch(self, mock_download):
+    """Test market data fetching with mocked API."""
+    # Setup mock response
+    mock_data = create_mock_market_data()
+    mock_download.return_value = mock_data
+    
+    # Test the function
+    result = get_market_data("EURUSD", "1d", "1h")
+    
+    # Verify mock was called correctly
+    mock_download.assert_called_once_with(
+        tickers="EURUSD=X", 
+        period="1d", 
+        interval="1h", 
+        progress=False, 
+        auto_adjust=True
+    )
+```
+
+### File System Mocking
+```python
+@patch('pathlib.Path.mkdir')
+@patch('builtins.open', new_callable=mock_open)
+def test_file_operations(self, mock_file, mock_mkdir):
+    """Test file operations with mocked file system."""
+    # Test file creation
+    save_data_to_file(test_data, "test_output.json")
+    
+    # Verify file operations
+    mock_mkdir.assert_called_with(exist_ok=True)
+    mock_file.assert_called_with("test_output.json", 'w')
+```
+
+## Test Data Management
+
+### Test Data Creation
+- Use factories for creating test data
+- Include both valid and invalid test cases
+- Use realistic market data when possible
+- Create edge case scenarios
+
+### Sample Data Patterns
+```python
+def create_sample_market_data():
+    """Create sample market data for testing."""
+    dates = pd.date_range('2024-01-01', periods=100, freq='D')
+    return pd.DataFrame({
+        'Open': np.random.uniform(1.05, 1.15, 100),
+        'High': np.random.uniform(1.06, 1.16, 100),
+        'Low': np.random.uniform(1.04, 1.14, 100),
+        'Close': np.random.uniform(1.05, 1.15, 100),
+        'Volume': np.random.randint(1000, 10000, 100)
+    }, index=dates)
+```
+
+## Assertion Patterns
+
+### Data Validation Assertions
+```python
+# Test data structure
+self.assertIn('Close', data.columns)
+self.assertEqual(len(data), expected_length)
+self.assertFalse(data.empty)
+
+# Test data types
+self.assertIsInstance(data, pd.DataFrame)
+self.assertTrue(pd.api.types.is_numeric_dtype(data['Close']))
+
+# Test data ranges
+self.assertGreater(data['Close'].min(), 0)
+self.assertLess(data['Close'].max(), 2.0)
+```
+
+### Error Handling Assertions
+```python
+# Test exceptions
+with self.assertRaises(ValueError) as context:
+    function_with_invalid_input()
+self.assertIn("expected error message", str(context.exception))
+
+# Test warnings
+with self.assertWarns(UserWarning):
+    function_that_warns()
+```
+
+## Performance Testing
+
+### Timing Tests
+```python
+import time
+
+def test_performance(self):
+    """Test that function completes within acceptable time."""
+    start_time = time.time()
+    result = expensive_operation()
+    execution_time = time.time() - start_time
+    
+    self.assertLess(execution_time, 5.0)  # Should complete within 5 seconds
+    self.assertIsNotNone(result)
+```
+
+## Test Documentation
+
+### Test Method Documentation
+- Use descriptive docstrings for test methods
+- Explain what the test validates
+- Include expected behavior and edge cases
+- Document any special setup requirements
+
+### Test Class Documentation
+- Explain the purpose of the test class
+- List the features being tested
+- Include any shared setup or teardown logic
+
+## Continuous Integration
+
+### Test Execution
+- All tests must pass before merging
+- Use verbose output for debugging
+- Include test coverage reporting
+- Run tests in isolated environments
+
+### Test Environment
+- Use Linux environment for date formatting tests
+- Mock external dependencies in CI
+- Use deterministic test data
+- Clean up test artifacts after execution

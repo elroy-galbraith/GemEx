@@ -1,0 +1,255 @@
+---
+description: Environment and configuration management for GemEx
+---
+
+# Environment and Configuration Rules for GemEx
+
+## Environment Setup
+
+### Python Environment
+- **Python Version**: 3.12 or higher required
+- **Virtual Environment**: Use `gemx_venv/` for dependency isolation
+- **Package Management**: Use `requirements.txt` for reproducible builds
+- **Environment Activation**: Always activate virtual environment before development
+
+### Required Environment Variables
+```bash
+# Core API Configuration
+GEMINI_API_KEY="your_gemini_api_key_here"
+
+# Optional Telegram Integration
+TELEGRAM_BOT_TOKEN="your_telegram_bot_token"
+TELEGRAM_CHAT_ID="your_telegram_chat_id"
+
+# Alternative API Key Name (for compatibility)
+GOOGLE_API_KEY="your_gemini_api_key_here"
+```
+
+## Configuration Management
+
+### Master Configuration Section
+All configuration should be centralized at the top of [market_planner.py](mdc:market_planner.py):
+
+```python
+# --- 0. MASTER CONFIGURATION ---
+
+# --- API and Model Setup ---
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+MODEL_NAME = "gemini-1.5-pro-latest"
+
+# --- Telegram Configuration ---
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+
+# --- File Path Setup ---
+OUTPUT_DIR = Path("trading_session")
+CURRENT_DATE = datetime.now().strftime("%Y_%m_%d")
+DATE_OUTPUT_DIR = OUTPUT_DIR / CURRENT_DATE
+
+# --- Market Symbols ---
+SYMBOLS = {
+    "EURUSD": "EURUSD=X",
+    "DXY": "DX-Y.NYB",
+    "US10Y": "^TNX",
+    "EURJPY": "EURJPY=X",
+    "SPX500": "^GSPC"
+}
+```
+
+### Configuration Validation
+```python
+def validate_environment():
+    """Validate required environment variables and configuration."""
+    required_vars = ["GEMINI_API_KEY"]
+    missing_vars = []
+    
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        raise ValueError(f"Missing required environment variables: {missing_vars}")
+    
+    return True
+```
+
+## Development Environment
+
+### Local Development Setup
+```bash
+# 1. Clone and setup environment
+cd GemEx
+python -m venv gemx_venv
+source gemx_venv/bin/activate  # On Windows: gemx_venv\Scripts\activate
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Configure environment variables
+export GEMINI_API_KEY="your_api_key_here"
+# Or create .env file with: GEMINI_API_KEY=your_api_key_here
+
+# 4. Test environment
+python test_environment.py
+
+# 5. Run analysis
+python market_planner.py
+```
+
+### Environment Testing
+Use [test_environment.py](mdc:test_environment.py) to validate:
+- Python version compatibility
+- Required package availability
+- Environment variable configuration
+- File system permissions
+- Output directory creation
+
+## Production Environment
+
+### GitHub Actions Configuration
+- **Runner**: Ubuntu Linux (default)
+- **Python Version**: 3.12
+- **Secrets Management**: Use GitHub repository secrets
+- **Schedule**: Configurable cron expressions
+- **Artifacts**: Store trading session outputs
+
+### Required GitHub Secrets
+```yaml
+# Repository Settings → Secrets and variables → Actions
+GEMINI_API_KEY: "your_gemini_api_key"
+TELEGRAM_BOT_TOKEN: "your_telegram_bot_token"  # Optional
+TELEGRAM_CHAT_ID: "your_telegram_chat_id"      # Optional
+```
+
+## File System Configuration
+
+### Directory Structure
+```
+GemEx/
+├── .cursor/rules/           # Cursor IDE rules
+├── trading_session/         # Output directory
+│   ├── YYYY_MM_DD/        # Date-based subdirectories
+│   └── [current files]    # Latest session files
+├── gemx_venv/             # Python virtual environment
+├── market_planner.py      # Main application
+├── prompts.py            # AI system prompts
+├── requirements.txt      # Python dependencies
+└── test_*.py            # Test files
+```
+
+### Path Management
+```python
+from pathlib import Path
+
+# Use pathlib for cross-platform compatibility
+OUTPUT_DIR = Path("trading_session")
+DATE_OUTPUT_DIR = OUTPUT_DIR / CURRENT_DATE
+
+# Create directories with proper error handling
+OUTPUT_DIR.mkdir(exist_ok=True)
+DATE_OUTPUT_DIR.mkdir(exist_ok=True)
+```
+
+## Dependency Management
+
+### Core Dependencies
+```python
+# Data Processing
+pandas>=2.3.0
+numpy>=2.3.0
+scipy>=1.16.0
+
+# Market Data
+yfinance>=0.2.65
+
+# AI Integration
+google-generativeai>=0.8.5
+
+# Web Scraping
+cloudscraper>=1.2.71
+beautifulsoup4>=4.13.5
+
+# Utilities
+python-dotenv>=1.1.1
+requests>=2.32.5
+```
+
+### Version Pinning Strategy
+- Pin major versions for stability
+- Use compatible release specifiers (>=)
+- Test with latest versions regularly
+- Document any version-specific requirements
+
+## Error Handling and Logging
+
+### Environment Error Handling
+```python
+def handle_environment_errors():
+    """Handle common environment-related errors."""
+    try:
+        validate_environment()
+    except ValueError as e:
+        print(f"❌ Environment Error: {e}")
+        print("Please check your environment variables and configuration.")
+        sys.exit(1)
+    except ImportError as e:
+        print(f"❌ Import Error: {e}")
+        print("Please install required dependencies: pip install -r requirements.txt")
+        sys.exit(1)
+```
+
+### Logging Configuration
+```python
+import logging
+
+# Configure logging for different environments
+if os.environ.get("ENVIRONMENT") == "production":
+    logging.basicConfig(level=logging.INFO)
+else:
+    logging.basicConfig(level=logging.DEBUG)
+```
+
+## Security Best Practices
+
+### API Key Security
+- Never commit API keys to version control
+- Use environment variables for all sensitive data
+- Implement key rotation procedures
+- Monitor API key usage and costs
+
+### File Permissions
+```python
+# Set appropriate file permissions
+def secure_output_files(file_path):
+    """Set secure file permissions for output files."""
+    os.chmod(file_path, 0o600)  # Read/write for owner only
+```
+
+### Data Privacy
+- Avoid logging sensitive market data
+- Use data anonymization for testing
+- Implement proper data retention policies
+- Follow GDPR and privacy regulations
+
+## Monitoring and Maintenance
+
+### Health Checks
+```python
+def perform_health_check():
+    """Perform system health check."""
+    checks = {
+        "python_version": sys.version_info >= (3, 12),
+        "api_key_set": bool(os.environ.get("GEMINI_API_KEY")),
+        "output_dir_writable": os.access(OUTPUT_DIR, os.W_OK),
+        "dependencies_available": check_dependencies()
+    }
+    
+    return all(checks.values()), checks
+```
+
+### Maintenance Tasks
+- Regular dependency updates
+- API key rotation
+- Log file cleanup
+- Output directory maintenance
+- Performance monitoring

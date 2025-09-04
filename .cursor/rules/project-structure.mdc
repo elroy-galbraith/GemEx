@@ -1,0 +1,52 @@
+---
+alwaysApply: true
+description: GemEx project structure and architecture guidelines
+---
+
+# GemEx Project Structure Guide
+
+## Core Architecture
+
+GemEx is an AI-powered forex trading analysis system that operates under the codename "Viper". The main entry point is [market_planner.py](mdc:market_planner.py), which orchestrates the entire trading analysis pipeline.
+
+### Key Components
+
+- **Main Application**: [market_planner.py](mdc:market_planner.py) - Core trading analysis engine
+- **AI Prompts**: [prompts.py](mdc:prompts.py) - System prompts for Gemini AI models
+- **Dependencies**: [requirements.txt](mdc:requirements.txt) - Python package requirements
+- **Output Directory**: `trading_session/` - Contains date-based analysis results
+
+### Data Flow Pipeline
+
+1. **Data Collection** → Market data from Yahoo Finance via yfinance
+2. **Technical Analysis** → EMA, RSI, ATR, support/resistance calculation
+3. **Data Packet Generation** → Structured JSON with all analysis
+4. **AI Strategy Generation** → Gemini Pro creates trading plan
+5. **Quality Review** → AI reviewer validates plan consistency
+6. **Execution Decision** → Go/No-Go recommendation based on scores
+
+### Output Structure
+
+Each trading session creates a date-based subdirectory (`YYYY_MM_DD/`) containing:
+- `viper_packet.json` - Raw market data analysis
+- `trade_plan.md` - Generated trading strategy
+- `review_scores.json` - AI quality assessment
+
+### Environment Configuration
+
+- Virtual environment: `gemx_venv/` (Python 3.12+)
+- Environment variables: `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- Configuration: Master configuration section at top of [market_planner.py](mdc:market_planner.py)
+
+### Testing Structure
+
+- [test_date_filtering.py](mdc:test_date_filtering.py) - Date filtering logic tests
+- [test_environment.py](mdc:test_environment.py) - Environment validation
+- [test_integration.py](mdc:test_integration.py) - Integration tests
+
+## Development Guidelines
+
+- Always use absolute paths when possible
+- Follow the established module structure (Data Engineering → LLM Orchestration → Main Execution)
+- Maintain the Viper persona and trading terminology
+- Use date-based output organization for session management
