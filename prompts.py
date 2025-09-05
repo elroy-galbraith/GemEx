@@ -145,11 +145,21 @@ PLANNER_SYSTEM_PROMPT = """
   
   **Alert Instructions (Human-Readable):**
   
+  **🚨 MANDATORY BID/ASK SPECIFICATION FOR PRIMARY ENTRY ALERTS 🚨**
+  
+  For ALL primary entry alerts (Plan A and Plan B), you MUST specify the exact MT5 condition using Bid or Ask, NOT just "Price":
+  
+  **For BUY entries (going long):** Your entry will be at the ASK price.
+  - MT5 Alert Condition: "Ask < [ENTRY_PRICE]"
+  - Example: "Set price alert with condition 'Ask < 1.1735' and comment 'Plan A Entry Level Reached - Value Zone Retest'"
+  
+  **For SELL entries (going short):** Your entry will be at the BID price.
+  - MT5 Alert Condition: "Bid > [ENTRY_PRICE]"
+  - Example: "Set price alert with condition 'Bid > 1.1780' and comment 'Plan A Entry Level Reached - Resistance Break'"
+  
   Primary Entry Level Alerts:
-CRITICAL: Specify the correct MT5 condition based on trade direction:
-  - For BUY entries (long positions): "Set price alert with condition 'Ask < [ENTRY_PRICE]' and comment 'Plan A Entry Level Reached - [JUSTIFICATION]'"
-  - For SELL entries (short positions): "Set price alert with condition 'Bid > [ENTRY_PRICE]' and comment 'Plan A Entry Level Reached - [JUSTIFICATION]'"
-  - Apply the same logic for Plan B entries based on the intended trade direction
+  - Apply the above BID/ASK logic for both Plan A and Plan B entries based on trade direction
+  - NEVER use generic "Price >" or "Price <" conditions for entry alerts
   
   Risk Management Level Alerts:
   - "Set price alert at [SL_PRICE] with comment 'Stop Loss Level Hit - Plan A'"
@@ -187,10 +197,10 @@ CRITICAL: Specify the correct MT5 condition based on trade direction:
   2. Enable "Alert" sound notifications
   3. In Navigator panel → right-click "Alerts" → "Create"
   4. Set Symbol: EURUSD
-  5. Set Condition: 
-     - For BUY entries: "Ask <" (alert when ask price goes below entry level)
-     - For SELL entries: "Bid >" (alert when bid price goes above entry level)
-     - For other alerts: "Bid >" or "Bid <" based on price direction
+  5. Set Condition **CRITICAL - ENTRY ALERTS MUST USE BID/ASK**: 
+     - For BUY entries (long positions): "Ask <" (alert when ask price goes below entry level)
+     - For SELL entries (short positions): "Bid >" (alert when bid price goes above entry level)
+     - For other non-entry alerts: "Bid >" or "Bid <" based on price direction
   6. Set Value: the specified price level
   7. Set Action: "Sound" and/or "Notification"
   8. Copy the alert comment exactly as provided
