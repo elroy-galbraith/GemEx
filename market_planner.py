@@ -1125,25 +1125,46 @@ def extract_mt5_alerts_from_plan(trade_plan_text, current_price):
         for match in matches:
             try:
                 price_level = float(match)
-                
-                # Determine alert condition based on current price
-                if price_level > current_price:
-                    condition = "bid_above"
-                    direction = "above"
-                else:
-                    condition = "bid_below" 
-                    direction = "below"
-                
-                # Create descriptive comment based on category
+
+                # For entry levels, determine trade direction from context
                 if category == "entry":
-                    comment = f"Entry level reached {direction} {price_level} - Consider manual entry"
-                elif category == "exit":
-                    comment = f"Exit level reached {direction} {price_level} - Consider manual exit"
+                    # Find the position of the matched price in the text
+                    match_pos = trade_plan_text.lower().find(str(match).lower())
+                    # Look at a window of text around the match to find 'buy' or 'sell'
+                    window = 40  # characters before and after
+                    start = max(0, match_pos - window)
+                    end = min(len(trade_plan_text), match_pos + window)
+                    context_snippet = trade_plan_text[start:end].lower()
+                    if "buy" in context_snippet:
+                        trade_direction = "BUY"
+                        condition = "ask_below"
+                    elif "sell" in context_snippet:
+                        trade_direction = "SELL"
+                        condition = "bid_above"
+                    else:
+                        # Fallback: infer from price vs current price
+                        if price_level > current_price:
+                            trade_direction = "SELL"
+                            condition = "bid_above"
+                        else:
+                            trade_direction = "BUY"
+                            condition = "ask_below"
+                    direction = trade_direction.lower()
+                    comment = f"Entry level ({trade_direction}) reached at {price_level} - Consider manual entry"
                 else:
-                    comment = f"Key level {direction} {price_level} - Monitor price action"
-                
+                    # Determine alert condition based on current price for non-entry
+                    if price_level > current_price:
+                        condition = "bid_above"
+                        direction = "above"
+                    else:
+                        condition = "bid_below"
+                        direction = "below"
+                    if category == "exit":
+                        comment = f"Exit level reached {direction} {price_level} - Consider manual exit"
+                    else:
+                        comment = f"Key level {direction} {price_level} - Monitor price action"
+
                 alerts.append(create_alert(price_level, condition, comment, category, priority))
-                
             except ValueError:
                 continue
     
