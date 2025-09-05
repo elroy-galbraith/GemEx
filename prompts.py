@@ -137,7 +137,76 @@ PLANNER_SYSTEM_PROMPT = """
   - No emotional chaining: "A win doesn't make the next trade more likely to be a loser."
   - No revenge trading: "A loss doesn't make the next trade a 'due' win."
 
-  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly.
+  6. MT5 Price Alert Setup
+  
+  **CRITICAL: Generate both human-readable instructions AND structured data for MT5 price alerts.**
+  
+  Create a comprehensive alert system covering ALL key levels identified in your analysis. These are PRICE ALERTS (notifications), NOT trade orders. For each alert, provide:
+  
+  **Alert Instructions (Human-Readable):**
+  
+  **🚨 MANDATORY BID/ASK SPECIFICATION FOR PRIMARY ENTRY ALERTS 🚨**
+  
+  For ALL primary entry alerts (Plan A and Plan B), you MUST specify the exact MT5 condition using Bid or Ask, NOT just "Price":
+  
+  **For BUY entries (going long):** Your entry will be at the ASK price.
+  - MT5 Alert Condition: "Ask < [ENTRY_PRICE]"
+  - Example: "Set price alert with condition 'Ask < 1.1735' and comment 'Plan A Entry Level Reached - Value Zone Retest'"
+  
+  **For SELL entries (going short):** Your entry will be at the BID price.
+  - MT5 Alert Condition: "Bid > [ENTRY_PRICE]"
+  - Example: "Set price alert with condition 'Bid > 1.1780' and comment 'Plan A Entry Level Reached - Resistance Break'"
+  
+  Primary Entry Level Alerts:
+  - Apply the above BID/ASK logic for both Plan A and Plan B entries based on trade direction
+  - NEVER use generic "Price >" or "Price <" conditions for entry alerts
+  
+  Risk Management Level Alerts:
+  - "Set price alert at [SL_PRICE] with comment 'Stop Loss Level Hit - Plan A'"
+  - "Set price alert at [TP1_PRICE] with comment 'Take Profit 1 Level - Consider Partial Close'"
+  - "Set price alert at [TP2_PRICE] with comment 'Take Profit 2 Level - Consider Full Close'"
+  
+  Key Level Monitoring Alerts:
+  - "Set price alert at [UPPER_BOUND] with comment 'Major Resistance Level Test'"
+  - "Set price alert at [LOWER_BOUND] with comment 'Major Support Level Test'"
+  - "Set price alert at [BULL_BEAR_PIVOT] with comment 'Bull/Bear Pivot Level Break'"
+  
+  **MT5 Alert Data Structure (JSON):**
+  
+  Also provide a structured JSON object with the following format for each alert:
+  ```json
+  {
+    "alerts": [
+      {
+        "symbol": "EURUSD",
+        "price": 1.1234,
+        "condition": "bid_above|bid_below|ask_above|ask_below",
+        "action": "notification",
+        "enabled": true,
+        "comment": "Plan A Entry Level Reached - Value Zone Retest",
+        "category": "entry|exit|level",
+        "priority": "high|medium|low"
+      }
+    ]
+  }
+  ```
+  
+  **Usage Instructions:**
+  Provide step-by-step MT5 price alert setup instructions:
+  1. Open MT5 Terminal → Tools → Options → Events
+  2. Enable "Alert" sound notifications
+  3. In Navigator panel → right-click "Alerts" → "Create"
+  4. Set Symbol: EURUSD
+  5. Set Condition **CRITICAL - ENTRY ALERTS MUST USE BID/ASK**: 
+     - For BUY entries (long positions): "Ask <" (alert when ask price goes below entry level)
+     - For SELL entries (short positions): "Bid >" (alert when bid price goes above entry level)
+     - For other non-entry alerts: "Bid >" or "Bid <" based on price direction
+  6. Set Value: the specified price level
+  7. Set Action: "Sound" and/or "Notification"
+  8. Copy the alert comment exactly as provided
+  9. Click "OK" to create the alert
+  
+  Execution Mandate: A final, direct order. Example: "Patience is our weapon. No trigger, no trade. Protect capital above all else. Remember: today's plan builds on yesterday's market evolution (Analyst mindset), but each trade execution is independent (Executor mindset). Wear both hats seamlessly. Use the MT5 price alerts to monitor all key levels without emotion and make manual trading decisions when alerted."
 """
 
 REVIEWER_SYSTEM_PROMPT = """

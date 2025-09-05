@@ -34,7 +34,8 @@ GemEx/
 │   ├── YYYY_MM_DD/          # Date-based subdirectories
 │   │   ├── viper_packet.json # Raw market data analysis
 │   │   ├── trade_plan.md     # Generated trading strategy
-│   │   └── review_scores.json # AI quality assessment
+│   │   ├── review_scores.json # AI quality assessment
+│   │   └── mt5_alerts.json   # MT5 price alert instructions
 │   └── [current session files]
 └── gemx_venv/                # Python virtual environment
 ```
@@ -167,6 +168,53 @@ This project is licensed under the **Apache License 2.0** - see the [LICENSE](LI
   "confidenceScore": { "score": 6, "justification": "..." }
 }
 ```
+
+#### MT5 Price Alerts (`mt5_alerts.json`)
+```json
+{
+  "alerts": [
+    {
+      "symbol": "EURUSD",
+      "price": 1.1234,
+      "condition": "bid_above|bid_below|ask_above|ask_below",
+      "action": "notification",
+      "enabled": true,
+      "comment": "Plan A Entry Level Reached - Value Zone Retest",
+      "category": "entry|exit|level",
+      "priority": "high|medium|low"
+    }
+  ],
+  "metadata": {
+    "generated_at": "2025-01-03T10:00:00.000Z",
+    "symbol": "EURUSD",
+    "current_price": 1.1200,
+    "total_alerts": 8
+  }
+}
+```
+
+The MT5 alerts file contains:
+- **Structured price alert data** for import into MetaTrader 5
+- **Entry/exit level notifications** for both Plan A and Plan B setups
+- **Key level alerts** for support, resistance, and pivot points
+- **Human-readable comments** for each alert with justification
+- **Priority levels** to help focus on the most important price levels
+
+### Using MT5 Price Alerts
+
+1. **Manual Setup in MT5:**
+   - Open MT5 Terminal → Tools → Options → Events
+   - Enable "Alert" sound notifications
+   - In Navigator panel → right-click "Alerts" → "Create"
+   - Set Symbol: EURUSD, Condition: "Bid >" or "Bid <", Value: price level
+   - Set Action: "Sound" and/or "Notification"
+   - Copy alert comments exactly as provided in the trading plan
+
+2. **Automated Import (Advanced):**
+   - Use MT5 Expert Advisor to read the JSON file
+   - Automatically create price alerts from the structured data
+   - Enable audio/visual notifications when price levels are reached
+   - **Note: These are alerts only - no automatic trading**
 
 ## 🔧 Configuration
 
