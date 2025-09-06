@@ -350,11 +350,30 @@ TELEGRAM_CHAT_ID=your_chat_id_here
 ```
 
 ### 4. Test the Integration
-Run your script and you should receive a formatted message with:
-- Market snapshot (EURUSD price, trends)
-- Analysis scores (Plan Quality & Confidence)
-- Trading decision (GO/WAIT/NO-GO)
-- File generation confirmation
+Run your script and you should receive formatted messages with:
+
+#### New Concise Format (v2.0)
+- **Primary Summary**: Scannable decision summary (< 250 chars)
+  - Market snapshot with current price
+  - Clear GO/WAIT/SKIP decision with reasoning  
+  - Quality and confidence scores
+  - Market bias and next action steps
+- **Technical Details** (GO decisions only): Key support/resistance levels
+- **Psychology Tip**: Daily rotating trading discipline reminder
+- **Execution Plan** (GO decisions only): Abbreviated key execution details
+
+#### Message Types by Decision:
+- **✅ GO**: Summary + Technical Details + Psychology Tip + Execution Plan
+- **⏸️ WAIT**: Summary + Psychology Tip only  
+- **❌ SKIP**: Summary + Psychology Tip only
+- **🚨 Critical Warnings**: Override with full details when risk >3% or quality <4
+
+#### Benefits of New Format:
+- **39% shorter** primary messages for faster scanning
+- **Smart filtering** shows only relevant information per decision type
+- **Visual hierarchy** with consistent emoji indicators
+- **Context-aware** psychology tips based on market conditions
+- **Error-resilient** with graceful fallback messaging
 
 ### 5. GitHub Actions Setup (Future)
 When you're ready to automate with GitHub Actions, add these secrets to your repository:
