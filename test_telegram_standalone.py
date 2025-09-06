@@ -8,42 +8,37 @@ import json
 import random
 from datetime import datetime
 
-# Standalone TelegramMessageBuilder for testing
-VISUAL_INDICATORS = {
-    "emojis": {
-        "go": "✅",
-        "wait": "⏸️", 
-        "skip": "❌",
-        "low_risk": "🟢",
-        "medium_risk": "🟡", 
-        "high_risk": "🔴",
-        "bullish": "📈",
-        "bearish": "📉",
-        "neutral": "➡️",
-        "decision": "🎯",
-        "market": "📊",
-        "action": "⚡"
+# Import shared constants
+try:
+    from telegram_constants import VISUAL_INDICATORS, PSYCHOLOGY_TIPS
+except ImportError:
+    # Fallback constants for standalone testing if shared file is not available
+    VISUAL_INDICATORS = {
+        "emojis": {
+            "go": "✅", "wait": "⏸️", "skip": "❌",
+            "low_risk": "🟢", "medium_risk": "🟡", "high_risk": "🔴",
+            "bullish": "📈", "bearish": "📉", "neutral": "➡️",
+            "decision": "🎯", "market": "📊", "action": "⚡"
+        }
     }
-}
-
-PSYCHOLOGY_TIPS = {
-    'calm_market': [
-        "🎯 Patience in calm markets prevents overtrading",
-        "📊 Stick to your position sizing rules",
-        "🕰️ Quality setups are worth waiting for"
-    ],
-    'volatile_market': [
-        "🛡️ Reduce position size in high volatility", 
-        "⏱️ Wait for clear setups - volatility creates traps",
-        "📏 Wider stops may be needed in volatile conditions"
-    ],
-    'general': [
-        "💡 Plan your trade, trade your plan",
-        "⚖️ Risk management is profit management", 
-        "🎯 Focus on process, not outcomes",
-        "📈 Consistency beats perfection"
-    ]
-}
+    PSYCHOLOGY_TIPS = {
+        'calm_market': [
+            "🎯 Patience in calm markets prevents overtrading",
+            "📊 Stick to your position sizing rules",
+            "🕰️ Quality setups are worth waiting for"
+        ],
+        'volatile_market': [
+            "🛡️ Reduce position size in high volatility", 
+            "⏱️ Wait for clear setups - volatility creates traps",
+            "📏 Wider stops may be needed in volatile conditions"
+        ],
+        'general': [
+            "💡 Plan your trade, trade your plan",
+            "⚖️ Risk management is profit management", 
+            "🎯 Focus on process, not outcomes",
+            "📈 Consistency beats perfection"
+        ]
+    }
 
 class TestTelegramMessageBuilder:
     """Standalone test version of TelegramMessageBuilder."""

@@ -57,52 +57,22 @@ SYMBOLS = {
 # --- Telegram Configuration ---
 
 # Visual indicators configuration
-VISUAL_INDICATORS = {
-    "emojis": {
-        "go": "✅",
-        "wait": "⏸️", 
-        "skip": "❌",
-        "low_risk": "🟢",
-        "medium_risk": "🟡", 
-        "high_risk": "🔴",
-        "bullish": "📈",
-        "bearish": "📉",
-        "neutral": "➡️",
-        "decision": "🎯",
-        "market": "📊",
-        "action": "⚡"
+# Import shared constants
+try:
+    from telegram_constants import VISUAL_INDICATORS, PSYCHOLOGY_TIPS
+except ImportError:
+    # Fallback constants if shared file is not available
+    VISUAL_INDICATORS = {
+        "emojis": {
+            "go": "✅", "wait": "⏸️", "skip": "❌",
+            "low_risk": "🟢", "medium_risk": "🟡", "high_risk": "🔴",
+            "bullish": "📈", "bearish": "📉", "neutral": "➡️",
+            "decision": "🎯", "market": "📊", "action": "⚡"
+        }
     }
-}
-
-# Psychology tips database
-PSYCHOLOGY_TIPS = {
-    'calm_market': [
-        "🎯 Patience in calm markets prevents overtrading",
-        "📊 Stick to your position sizing rules",
-        "🕰️ Quality setups are worth waiting for"
-    ],
-    'volatile_market': [
-        "🛡️ Reduce position size in high volatility", 
-        "⏱️ Wait for clear setups - volatility creates traps",
-        "📏 Wider stops may be needed in volatile conditions"
-    ],
-    'winning_streak': [
-        "📈 Stay humble - markets can change quickly",
-        "💰 Consider banking some profits",
-        "🎲 Don't increase risk due to recent wins"
-    ],
-    'losing_streak': [
-        "🔄 Trust your system through drawdowns", 
-        "📉 Reduce size until confidence returns",
-        "📖 Review your rules and stick to them"
-    ],
-    'general': [
-        "💡 Plan your trade, trade your plan",
-        "⚖️ Risk management is profit management", 
-        "🎯 Focus on process, not outcomes",
-        "📈 Consistency beats perfection"
-    ]
-}
+    PSYCHOLOGY_TIPS = {
+        'general': ["💡 Plan your trade, trade your plan", "⚖️ Risk management is profit management"]
+    }
 
 class TelegramMessageBuilder:
     """Builds concise, scannable Telegram messages for trading decisions."""
@@ -591,16 +561,25 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         # Return success if all critical messages were sent
         return all(messages_sent)
         
-    except Exception as e:
-        print(f"❌ Error creating Telegram summary: {e}")
+    except (KeyError, TypeError) as e:
+        print(f"❌ Data structure error in Telegram summary: {e}")
         # Fallback to simplified message
         try:
             message_builder = TelegramMessageBuilder()
             fallback_message = message_builder._build_fallback_message(data_packet, review_scores)
             return send_telegram_message(fallback_message)
-        except Exception as e2:
+        except (AttributeError, KeyError) as e2:
             print(f"❌ Fallback message also failed: {e2}")
             return False
+    except (ConnectionError, requests.exceptions.RequestException) as e:
+        print(f"❌ Network error sending Telegram message: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Unexpected error creating Telegram summary: {e}")
+        # Log the full exception for debugging
+        import traceback
+        traceback.print_exc()
+        return False
 
 def _position_differs_from_standard(data_packet, review_scores):
     """Check if position sizing differs from standard rules."""

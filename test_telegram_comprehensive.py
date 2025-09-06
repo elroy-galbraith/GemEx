@@ -11,10 +11,24 @@ from pathlib import Path
 # Add the project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Early import handling for dependency-free testing
+try:
+    from market_planner import TelegramMessageBuilder
+    DEPENDENCIES_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Dependencies not available: {e}")
+    print("📋 Running in dependency-free test mode")
+    DEPENDENCIES_AVAILABLE = False
+
 def test_comprehensive_telegram_scenarios():
     """Test all telegram scenarios with the new system."""
     print("🚀 Comprehensive Telegram Messaging Test")
     print("=" * 60)
+    
+    if not DEPENDENCIES_AVAILABLE:
+        print("❌ Skipping tests due to missing dependencies")
+        print("💡 To run full tests, install requirements: pip install -r requirements.txt")
+        return False
     
     # Test scenarios covering different decision types and market conditions
     scenarios = [
@@ -77,87 +91,73 @@ def test_comprehensive_telegram_scenarios():
         }
     ]
     
-    try:
-        # Import the classes (will fail if dependencies missing, but we can still test logic)
-        from market_planner import TelegramMessageBuilder
+    builder = TelegramMessageBuilder()
+    
+    for i, scenario in enumerate(scenarios, 1):
+        print(f"\n{i}. Testing: {scenario['name']}")
+        print("-" * 50)
         
-        builder = TelegramMessageBuilder()
+        data_packet = scenario['data_packet']
+        review_scores = scenario['review_scores']
         
-        for i, scenario in enumerate(scenarios, 1):
-            print(f"\n{i}. Testing: {scenario['name']}")
-            print("-" * 50)
-            
-            data_packet = scenario['data_packet']
-            review_scores = scenario['review_scores']
-            
-            # Test summary message
-            summary = builder.build_summary_message(data_packet, review_scores, 3)
-            print(f"📊 SUMMARY ({len(summary)} chars):")
-            print(summary)
-            
-            # Test decision logic
-            quality_score = review_scores['planQualityScore']['score']
-            confidence_score = review_scores['confidenceScore']['score']
-            
-            if quality_score >= 6 and confidence_score >= 6:
-                actual_decision = "GO"
-            elif quality_score >= 6:
-                actual_decision = "WAIT"
-            else:
-                actual_decision = "SKIP"
-                
-            decision_match = actual_decision == scenario['expected_decision']
-            print(f"Decision: {actual_decision} {'✅' if decision_match else '❌'}")
-            
-            # Test technical details for GO decisions
-            if actual_decision == "GO":
-                technical = builder.build_technical_details(data_packet)
-                print(f"\n📈 TECHNICAL DETAILS ({len(technical)} chars):")
-                print(technical)
-            
-            # Test critical warnings for poor quality
-            if quality_score < 4:
-                warning = builder.check_critical_warnings(data_packet, review_scores)
-                if warning:
-                    print(f"\n🚨 CRITICAL WARNING ({len(warning)} chars):")
-                    print(warning)
-            
-            # Test psychology tip
-            daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
-            h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
-            
-            if 'bull' in daily_trend.lower() and 'bull' in h4_trend.lower():
-                condition = 'calm_market'
-            elif 'bull' in daily_trend.lower() and 'bear' in h4_trend.lower():
-                condition = 'volatile_market'
-            else:
-                condition = 'general'
-                
-            tip = builder.get_daily_psychology_tip(condition)
-            print(f"\n💡 Psychology Tip: {tip}")
-            
-            # Calculate total message length
-            total_length = len(summary)
-            if actual_decision == "GO":
-                total_length += len(technical) + len(tip)
-            else:
-                total_length += len(tip)
-                
-            print(f"\nTotal length: {total_length} chars")
-            print("=" * 50)
+        # Test summary message
+        summary = builder.build_summary_message(data_packet, review_scores, 3)
+        print(f"📊 SUMMARY ({len(summary)} chars):")
+        print(summary)
         
-        print("\n✅ All scenario tests completed successfully!")
-        return True
+        # Test decision logic
+        quality_score = review_scores['planQualityScore']['score']
+        confidence_score = review_scores['confidenceScore']['score']
         
-    except ImportError:
-        print("❌ Cannot import TelegramMessageBuilder due to missing dependencies")
-        print("Falling back to logic test...")
-        return test_logic_only()
-    except Exception as e:
-        print(f"❌ Test failed with error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        if quality_score >= 6 and confidence_score >= 6:
+            actual_decision = "GO"
+        elif quality_score >= 6:
+            actual_decision = "WAIT"
+        else:
+            actual_decision = "SKIP"
+            
+        decision_match = actual_decision == scenario['expected_decision']
+        print(f"Decision: {actual_decision} {'✅' if decision_match else '❌'}")
+        
+        # Test technical details for GO decisions
+        if actual_decision == "GO":
+            technical = builder.build_technical_details(data_packet)
+            print(f"\n📈 TECHNICAL DETAILS ({len(technical)} chars):")
+            print(technical)
+        
+        # Test critical warnings for poor quality
+        if quality_score < 4:
+            warning = builder.check_critical_warnings(data_packet, review_scores)
+            if warning:
+                print(f"\n🚨 CRITICAL WARNING ({len(warning)} chars):")
+                print(warning)
+        
+        # Test psychology tip
+        daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
+        h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
+        
+        if 'bull' in daily_trend.lower() and 'bull' in h4_trend.lower():
+            condition = 'calm_market'
+        elif 'bull' in daily_trend.lower() and 'bear' in h4_trend.lower():
+            condition = 'volatile_market'
+        else:
+            condition = 'general'
+            
+        tip = builder.get_daily_psychology_tip(condition)
+        print(f"\n💡 Psychology Tip: {tip}")
+        
+        # Calculate total message length
+        total_length = len(summary)
+        if actual_decision == "GO":
+            total_length += len(technical) + len(tip)
+        else:
+            total_length += len(tip)
+            
+        print(f"\nTotal length: {total_length} chars")
+        print("=" * 50)
+    
+    print("\n✅ All scenario tests completed successfully!")
+    return True
 
 def test_logic_only():
     """Test just the core logic without imports."""
