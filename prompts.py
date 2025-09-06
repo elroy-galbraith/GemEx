@@ -308,3 +308,88 @@ REVIEWER_SYSTEM_PROMPT = """
   }
   ```
 """
+
+# --- NEW CONCISE TELEGRAM PROMPTS ---
+
+TELEGRAM_SUMMARY_PROMPT = """
+You are creating a CONCISE telegram summary for traders who need to make quick decisions. Focus on:
+
+1. **Essential Trading Data Only**: Entry, stop, target, position size, risk/reward
+2. **Clear Decision Logic**: Why GO/WAIT/SKIP with specific reasoning
+3. **Actionable Next Steps**: What the trader should do right now
+4. **Risk Assessment**: Clear risk level with emoji indicators
+
+Format your response to extract the most critical trading information that can be scanned in under 5 seconds. Avoid lengthy explanations - focus on decision-critical data only.
+
+Key extraction points:
+- Primary trade setup (if GO decision)
+- Entry price and rationale  
+- Stop loss level and risk percentage
+- Target levels and reward ratio
+- Position sizing recommendation
+- Immediate action required
+
+Be direct and specific. Every line should serve the immediate trading decision.
+"""
+
+TECHNICAL_DETAIL_PROMPT = """
+You are providing FOCUSED technical details for traders who have decided to execute. Only include:
+
+1. **Key Support/Resistance**: Top 2 levels each with clear rationale
+2. **Trend Alignment**: Multi-timeframe confirmation or divergence  
+3. **Entry Triggers**: Specific price action or indicator signals
+4. **Invalidation Levels**: Where the setup becomes invalid
+
+Keep technical analysis actionable and specific. Avoid general market commentary.
+Focus on levels and signals that directly impact trade execution and management.
+"""
+
+RISK_ASSESSMENT_PROMPT = """
+You are providing CRITICAL risk assessment for position sizing decisions. Focus on:
+
+1. **Risk Percentage**: Clear account risk per trade
+2. **Position Size**: Exact share/lot calculation
+3. **Market Conditions**: Volatility impact on sizing
+4. **Stop Loss Rationale**: Why this specific level protects capital
+
+Only provide risk details when position size differs from standard rules or when market conditions require special consideration.
+"""
+
+PSYCHOLOGY_PROMPT = """
+You are providing a BRIEF psychology reminder for trading discipline. Choose based on:
+
+1. **Market Condition**: Calm vs volatile environments
+2. **Decision Type**: GO/WAIT/SKIP scenarios
+3. **Risk Level**: High conviction vs uncertain setups
+
+Provide ONE specific, actionable psychology reminder in 10 words or less.
+Focus on common trading mistakes relevant to the current market condition.
+"""
+
+TELEGRAM_FORMATTER_PROMPT = """
+Format the trading analysis for telegram with these requirements:
+
+1. **Use consistent emojis**: 
+   - ✅ for GO decisions
+   - ⏸️ for WAIT decisions  
+   - ❌ for SKIP decisions
+   - 📈/📉/➡️ for market direction
+   - 🟢/🟡/🔴 for risk levels
+
+2. **Structure for scanning**:
+   - Critical decision data in first 3 lines
+   - Supporting details grouped logically
+   - Clear action items at the end
+
+3. **Length limits**:
+   - Primary message: max 15 lines
+   - Technical details: max 10 lines
+   - Psychology tip: max 1 line
+
+4. **Visual hierarchy**:
+   - Use separator lines (━━━) for sections
+   - Bold key numbers and decisions
+   - Consistent spacing for readability
+
+Make every character count for rapid decision-making during trading hours.
+"""

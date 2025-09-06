@@ -164,28 +164,142 @@ class TelegramMessageBuilder:
             message = (
                 f"📈 TECHNICAL DETAILS\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
-                f"Daily: {daily_analysis.get('trendDirection', 'N/A')}\n"
-                f"H4: {h4_analysis.get('trendDirection', 'N/A')}\n" 
-                f"H1: {h1_analysis.get('trendDirection', 'N/A')}\n\n"
-                f"Key Levels:\n"
+                f"**Timeframe Alignment:**\n"
+                f"• Daily: {daily_analysis.get('trendDirection', 'N/A')}\n"
+                f"• H4: {h4_analysis.get('trendDirection', 'N/A')}\n" 
+                f"• H1: {h1_analysis.get('trendDirection', 'N/A')}\n\n"
             )
             
-            # Add support/resistance levels if available
-            if 'keySupportLevels' in daily_analysis:
+            # Add key levels with smart filtering
+            levels_added = 0
+            max_levels = 4  # Limit to most important levels
+            
+            if 'keySupportLevels' in daily_analysis and daily_analysis['keySupportLevels']:
                 support_levels = daily_analysis['keySupportLevels'][:2]  # Top 2
                 for level in support_levels:
-                    message += f"Support: {level:.4f}\n"
-                    
-            if 'keyResistanceLevels' in daily_analysis:
+                    if levels_added < max_levels:
+                        message += f"🟢 Support: {level:.4f}\n"
+                        levels_added += 1
+                        
+            if 'keyResistanceLevels' in daily_analysis and daily_analysis['keyResistanceLevels']:
                 resistance_levels = daily_analysis['keyResistanceLevels'][:2]  # Top 2
                 for level in resistance_levels:
-                    message += f"Resistance: {level:.4f}\n"
+                    if levels_added < max_levels:
+                        message += f"🔴 Resistance: {level:.4f}\n"
+                        levels_added += 1
+            
+            # Add volatility context if available
+            if 'volatilityMetrics' in data_packet:
+                atr_pips = data_packet['volatilityMetrics'].get('atr_14_daily_pips', 'N/A')
+                message += f"\n📊 Daily ATR: {atr_pips} pips"
             
             return message
             
         except Exception as e:
             print(f"❌ Error building technical details: {e}")
             return "📈 Technical details temporarily unavailable"
+    
+    def build_risk_details(self, analysis_data, position_differs_from_standard=False):
+        """Build risk management details (conditional)."""
+        try:
+            if not position_differs_from_standard:
+                return None  # Don't send if using standard position sizing
+                
+            message = (
+                f"⚠️ RISK ALERT\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Position sizing differs from standard rules\n"
+                f"Review risk parameters before execution"
+            )
+            
+            return message
+            
+        except Exception as e:
+            print(f"❌ Error building risk details: {e}")
+            return None
+    
+    def check_critical_warnings(self, data_packet, review_scores):
+        """Check if critical warnings override concise format."""
+        try:
+            quality_score = review_scores['planQualityScore']['score'] 
+            
+            # Calculate approximate risk percentage (placeholder - would need actual calculation)
+            risk_pct = 1.0  # Default assumption
+            
+            # Check VIX equivalent (using current price volatility as proxy)
+            current_price = data_packet["marketSnapshot"]["currentPrice"]
+            vix_equivalent = 20  # Placeholder - would calculate from price data
+            
+            # Critical conditions that override concise format
+            critical_conditions = [
+                risk_pct > 3.0,  # Risk > 3% of account
+                vix_equivalent > 30,  # High volatility
+                quality_score < 4,  # Very poor plan quality
+            ]
+            
+            if any(critical_conditions):
+                return self._build_critical_warning_message(critical_conditions)
+            
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error checking critical warnings: {e}")
+            return None
+    
+    def _build_critical_warning_message(self, conditions):
+        """Build critical warning override message."""
+        warnings = []
+        if conditions[0]:  # High risk
+            warnings.append("🚨 HIGH RISK: >3% account exposure")
+        if conditions[1]:  # High volatility  
+            warnings.append("🌪️ HIGH VOLATILITY: VIX >30")
+        if conditions[2]:  # Poor quality
+            warnings.append("📉 POOR QUALITY: Plan score <4")
+            
+        return (
+            f"🚨 CRITICAL WARNINGS\n"
+            f"━━━━━━━━━━━━━━━━━━\n" +
+            "\n".join(warnings) +
+            f"\n\n⚠️ Review plan thoroughly before proceeding"
+        )
+    
+    def filter_by_relevance(self, data, context):
+        """Filter information by relevance hierarchy."""
+        try:
+            filtered_data = {
+                'critical': [],    # Always show
+                'important': [],   # Show if affects decision  
+                'contextual': [],  # Show if requested
+                'educational': []  # Rotate daily
+            }
+            
+            quality_score = context.get('quality_score', 5)
+            confidence_score = context.get('confidence_score', 5)
+            
+            # Critical: Always show (stop loss, position size)
+            if 'stop_loss' in data:
+                filtered_data['critical'].append(data['stop_loss'])
+            if 'position_size' in data:
+                filtered_data['critical'].append(data['position_size'])
+                
+            # Important: Show if affects decision (divergences, news)
+            if quality_score >= 6 and 'technical_details' in data:
+                filtered_data['important'].append(data['technical_details'])
+                
+            # Contextual: Show if explicitly requested
+            if context.get('show_details', False):
+                filtered_data['contextual'] = data.get('additional_analysis', [])
+                
+            # Educational: Rotate daily (psychology tips)
+            filtered_data['educational'].append(
+                self.get_daily_psychology_tip(context.get('market_condition', 'general'))
+            )
+            
+            return filtered_data
+            
+        except Exception as e:
+            print(f"❌ Error filtering by relevance: {e}")
+            return {'critical': [data], 'important': [], 'contextual': [], 'educational': []}
     
     def get_daily_psychology_tip(self, market_condition='general'):
         """Get rotating psychology reminder based on context."""
@@ -417,45 +531,65 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         # Initialize message builder
         message_builder = TelegramMessageBuilder()
         
+        # Check for critical warnings first
+        critical_warning = message_builder.check_critical_warnings(data_packet, review_scores)
+        if critical_warning:
+            # Send critical warning and full details
+            warning_sent = send_telegram_message(critical_warning, parse_mode="Markdown")
+            full_plan_sent = send_telegram_message(f"📋 Full Plan\n\n{trade_plan}", parse_mode="Markdown")
+            return warning_sent and full_plan_sent
+        
         # Build primary summary message (always send)
         summary_message = message_builder.build_summary_message(
             data_packet, review_scores, mt5_alerts_count
         )
         
-        # Determine if we should send additional details
+        # Determine if we should send additional details based on decision
         quality_score = review_scores['planQualityScore']['score']
         confidence_score = review_scores['confidenceScore']['score']
-        should_send_details = quality_score >= 6 and confidence_score >= 6
+        is_go_decision = quality_score >= 6 and confidence_score >= 6
         
         # Send primary summary message
         summary_sent = send_telegram_message(summary_message, parse_mode="Markdown")
         
-        # Conditionally send additional details for GO decisions
-        details_sent = True  # Default to true for non-GO decisions
-        if should_send_details:
-            # Send technical details
-            technical_details = message_builder.build_technical_details(data_packet)
-            details_sent = send_telegram_message(technical_details, parse_mode="Markdown")
+        # Initialize message tracking
+        messages_sent = [summary_sent]
         
-        # Send psychology tip (rotate daily)
+        # Conditionally send technical details for GO decisions
+        if is_go_decision:
+            technical_details = message_builder.build_technical_details(data_packet)
+            if technical_details:
+                tech_sent = send_telegram_message(technical_details, parse_mode="Markdown")
+                messages_sent.append(tech_sent)
+        
+        # Check if risk details are needed (when position sizing differs)
+        position_differs = _position_differs_from_standard(data_packet, review_scores)
+        if position_differs:
+            risk_details = message_builder.build_risk_details(data_packet, True)
+            if risk_details:
+                risk_sent = send_telegram_message(risk_details, parse_mode="Markdown")
+                messages_sent.append(risk_sent)
+        
+        # Send context-aware psychology tip
         daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
         h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
-        
-        # Determine market condition for psychology tip context
         market_condition = _determine_market_condition(daily_trend, h4_trend, quality_score)
+        
         psychology_tip = message_builder.get_daily_psychology_tip(market_condition)
         tip_sent = send_telegram_message(psychology_tip, parse_mode="Markdown")
+        messages_sent.append(tip_sent)
         
-        # Optional: Send abbreviated plan for GO decisions only
-        plan_sent = True
-        if should_send_details:
-            # Create abbreviated plan focusing on key execution details
+        # For GO decisions, send abbreviated execution plan
+        if is_go_decision:
             abbreviated_plan = _create_abbreviated_plan(trade_plan)
-            plan_header = "📋 Key Execution Details\n\n"
-            plan_sent = send_telegram_message(plan_header + abbreviated_plan, parse_mode="Markdown") or \
-                       send_telegram_message(plan_header + abbreviated_plan)
+            if abbreviated_plan and len(abbreviated_plan.strip()) > 50:  # Only if meaningful content
+                plan_header = "⚡ EXECUTION PLAN\n━━━━━━━━━━━━━━━━━━\n"
+                plan_sent = send_telegram_message(plan_header + abbreviated_plan, parse_mode="Markdown") or \
+                           send_telegram_message(plan_header + abbreviated_plan)
+                messages_sent.append(plan_sent)
         
-        return summary_sent and details_sent and tip_sent and plan_sent
+        # Return success if all critical messages were sent
+        return all(messages_sent)
         
     except Exception as e:
         print(f"❌ Error creating Telegram summary: {e}")
@@ -467,6 +601,21 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         except Exception as e2:
             print(f"❌ Fallback message also failed: {e2}")
             return False
+
+def _position_differs_from_standard(data_packet, review_scores):
+    """Check if position sizing differs from standard rules."""
+    try:
+        # This would implement actual logic to check if position sizing
+        # differs from standard rules based on volatility, risk, etc.
+        # For now, return False (use standard sizing)
+        quality_score = review_scores['planQualityScore']['score']
+        
+        # Example: Non-standard if very high or very low confidence
+        confidence_score = review_scores['confidenceScore']['score']
+        return confidence_score < 5 or confidence_score > 9
+        
+    except Exception:
+        return False
 
 def _determine_market_condition(daily_trend, h4_trend, quality_score):
     """Determine market condition for psychology tip selection."""
