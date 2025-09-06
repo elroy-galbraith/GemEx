@@ -54,6 +54,220 @@ SYMBOLS = {
     "SPX500": "^GSPC"
 }
 
+# --- Telegram Configuration ---
+
+# Visual indicators configuration
+VISUAL_INDICATORS = {
+    "emojis": {
+        "go": "✅",
+        "wait": "⏸️", 
+        "skip": "❌",
+        "low_risk": "🟢",
+        "medium_risk": "🟡", 
+        "high_risk": "🔴",
+        "bullish": "📈",
+        "bearish": "📉",
+        "neutral": "➡️",
+        "decision": "🎯",
+        "market": "📊",
+        "action": "⚡"
+    }
+}
+
+# Psychology tips database
+PSYCHOLOGY_TIPS = {
+    'calm_market': [
+        "🎯 Patience in calm markets prevents overtrading",
+        "📊 Stick to your position sizing rules",
+        "🕰️ Quality setups are worth waiting for"
+    ],
+    'volatile_market': [
+        "🛡️ Reduce position size in high volatility", 
+        "⏱️ Wait for clear setups - volatility creates traps",
+        "📏 Wider stops may be needed in volatile conditions"
+    ],
+    'winning_streak': [
+        "📈 Stay humble - markets can change quickly",
+        "💰 Consider banking some profits",
+        "🎲 Don't increase risk due to recent wins"
+    ],
+    'losing_streak': [
+        "🔄 Trust your system through drawdowns", 
+        "📉 Reduce size until confidence returns",
+        "📖 Review your rules and stick to them"
+    ],
+    'general': [
+        "💡 Plan your trade, trade your plan",
+        "⚖️ Risk management is profit management", 
+        "🎯 Focus on process, not outcomes",
+        "📈 Consistency beats perfection"
+    ]
+}
+
+class TelegramMessageBuilder:
+    """Builds concise, scannable Telegram messages for trading decisions."""
+    
+    def __init__(self):
+        self.emojis = VISUAL_INDICATORS["emojis"]
+        self.psychology_tips = PSYCHOLOGY_TIPS
+        
+    def build_summary_message(self, data_packet, review_scores, mt5_alerts_count=0):
+        """Build concise primary summary message."""
+        try:
+            # Extract key data
+            current_price = data_packet["marketSnapshot"]["currentPrice"]
+            current_time = data_packet["marketSnapshot"]["currentTimeUTC"] 
+            daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
+            h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
+            
+            quality_score = review_scores['planQualityScore']['score']
+            confidence_score = review_scores['confidenceScore']['score']
+            
+            # Get current date for header
+            date_str = datetime.now().strftime("%m/%d")
+            
+            # Determine decision and emoji
+            decision_data = self._get_decision_data(quality_score, confidence_score)
+            
+            # Get market bias emoji
+            market_emoji = self._get_market_emoji(daily_trend, h4_trend)
+            
+            # Calculate VIX level placeholder (would need actual VIX data)
+            vix_level = "N/A"  # Placeholder - could extract from SPX500 volatility
+            
+            # Build primary message
+            message = (
+                f"📊 MARKET PLAN SUMMARY - {date_str}\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"🎯 EURUSD: {decision_data['emoji']} {decision_data['decision']}\n"
+                f"   Price: ${current_price:.4f}\n"
+                f"   Scores: Q{quality_score}/C{confidence_score}\n\n"
+                f"📈 Market: {market_emoji} {self._get_market_bias(daily_trend, h4_trend)} (VIX: {vix_level})\n\n"
+                f"{decision_data['reason']}\n\n"
+                f"⚡ Action: {decision_data['next_step']}\n"
+                f"━━━━━━━━━━━━━━━━━"
+            )
+            
+            return message
+            
+        except Exception as e:
+            print(f"❌ Error building summary message: {e}")
+            return self._build_fallback_message(data_packet, review_scores)
+    
+    def build_technical_details(self, data_packet):
+        """Build technical analysis details message (conditional)."""
+        try:
+            daily_analysis = data_packet["multiTimeframeAnalysis"]["Daily"]
+            h4_analysis = data_packet["multiTimeframeAnalysis"]["H4"]
+            h1_analysis = data_packet["multiTimeframeAnalysis"]["H1"]
+            
+            message = (
+                f"📈 TECHNICAL DETAILS\n"
+                f"━━━━━━━━━━━━━━━━━━\n"
+                f"Daily: {daily_analysis.get('trendDirection', 'N/A')}\n"
+                f"H4: {h4_analysis.get('trendDirection', 'N/A')}\n" 
+                f"H1: {h1_analysis.get('trendDirection', 'N/A')}\n\n"
+                f"Key Levels:\n"
+            )
+            
+            # Add support/resistance levels if available
+            if 'keySupportLevels' in daily_analysis:
+                support_levels = daily_analysis['keySupportLevels'][:2]  # Top 2
+                for level in support_levels:
+                    message += f"Support: {level:.4f}\n"
+                    
+            if 'keyResistanceLevels' in daily_analysis:
+                resistance_levels = daily_analysis['keyResistanceLevels'][:2]  # Top 2
+                for level in resistance_levels:
+                    message += f"Resistance: {level:.4f}\n"
+            
+            return message
+            
+        except Exception as e:
+            print(f"❌ Error building technical details: {e}")
+            return "📈 Technical details temporarily unavailable"
+    
+    def get_daily_psychology_tip(self, market_condition='general'):
+        """Get rotating psychology reminder based on context."""
+        try:
+            # Select appropriate tip category
+            tips_pool = self.psychology_tips.get(market_condition, self.psychology_tips['general'])
+            
+            # Use date-based rotation for consistency
+            today = datetime.now().timetuple().tm_yday  # Day of year
+            tip_index = today % len(tips_pool)
+            
+            return f"💡 {tips_pool[tip_index]}"
+            
+        except Exception as e:
+            print(f"❌ Error getting psychology tip: {e}")
+            return "💡 Stay disciplined and follow your plan"
+    
+    def _get_decision_data(self, quality_score, confidence_score):
+        """Get decision emoji, text, and reasoning."""
+        if quality_score >= 6 and confidence_score >= 6:
+            return {
+                'emoji': self.emojis['go'],
+                'decision': 'GO',
+                'reason': '✅ Plan is solid and conviction is high',
+                'next_step': 'Prepare for execution'
+            }
+        elif quality_score >= 6 and confidence_score < 6:
+            return {
+                'emoji': self.emojis['wait'], 
+                'decision': 'WAIT',
+                'reason': '⏸️ Plan is solid, but market feel is off',
+                'next_step': 'Monitor for confirmation signals'
+            }
+        else:
+            return {
+                'emoji': self.emojis['skip'],
+                'decision': 'SKIP', 
+                'reason': '❌ Quality or confidence too low',
+                'next_step': 'Wait for better setup'
+            }
+    
+    def _get_market_emoji(self, daily_trend, h4_trend):
+        """Get market direction emoji based on trend alignment."""
+        daily_bull = 'bull' in str(daily_trend).lower()
+        h4_bull = 'bull' in str(h4_trend).lower()
+        
+        if daily_bull and h4_bull:
+            return self.emojis['bullish']
+        elif not daily_bull and not h4_bull:
+            return self.emojis['bearish']
+        else:
+            return self.emojis['neutral']
+    
+    def _get_market_bias(self, daily_trend, h4_trend):
+        """Get market bias text."""
+        daily_bull = 'bull' in str(daily_trend).lower()
+        h4_bull = 'bull' in str(h4_trend).lower()
+        
+        if daily_bull and h4_bull:
+            return "BULLISH"
+        elif not daily_bull and not h4_bull:
+            return "BEARISH" 
+        else:
+            return "MIXED"
+    
+    def _build_fallback_message(self, data_packet, review_scores):
+        """Build basic fallback message if main builder fails."""
+        try:
+            current_price = data_packet["marketSnapshot"]["currentPrice"]
+            quality_score = review_scores['planQualityScore']['score']
+            confidence_score = review_scores['confidenceScore']['score']
+            
+            return (
+                f"📊 MARKET SUMMARY\n"
+                f"EURUSD: {current_price:.4f}\n"
+                f"Quality: {quality_score}/10\n"
+                f"Confidence: {confidence_score}/10\n"
+                f"Status: {'GO' if quality_score >= 6 and confidence_score >= 6 else 'WAIT'}"
+            )
+        except Exception:
+            return "📊 Market analysis completed - check files for details"
+
 # --- Telegram Functions ---
 
 def escape_markdown(text):
@@ -178,7 +392,7 @@ def _send_split_messages(message, parse_mode, max_length):
     return success_count == len(chunks)
 
 def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
-    """Send a summary of the trading analysis to Telegram."""
+    """Send a summary of the trading analysis to Telegram using new concise format."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
     
@@ -200,58 +414,116 @@ def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
         except (FileNotFoundError, json.JSONDecodeError):
             pass
         
-        # Extract key information
-        current_price = data_packet["marketSnapshot"]["currentPrice"]
-        current_time = data_packet["marketSnapshot"]["currentTimeUTC"]
+        # Initialize message builder
+        message_builder = TelegramMessageBuilder()
+        
+        # Build primary summary message (always send)
+        summary_message = message_builder.build_summary_message(
+            data_packet, review_scores, mt5_alerts_count
+        )
+        
+        # Determine if we should send additional details
+        quality_score = review_scores['planQualityScore']['score']
+        confidence_score = review_scores['confidenceScore']['score']
+        should_send_details = quality_score >= 6 and confidence_score >= 6
+        
+        # Send primary summary message
+        summary_sent = send_telegram_message(summary_message, parse_mode="Markdown")
+        
+        # Conditionally send additional details for GO decisions
+        details_sent = True  # Default to true for non-GO decisions
+        if should_send_details:
+            # Send technical details
+            technical_details = message_builder.build_technical_details(data_packet)
+            details_sent = send_telegram_message(technical_details, parse_mode="Markdown")
+        
+        # Send psychology tip (rotate daily)
         daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
         h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
         
-        quality_score = review_scores['planQualityScore']['score']
-        confidence_score = review_scores['confidenceScore']['score']
+        # Determine market condition for psychology tip context
+        market_condition = _determine_market_condition(daily_trend, h4_trend, quality_score)
+        psychology_tip = message_builder.get_daily_psychology_tip(market_condition)
+        tip_sent = send_telegram_message(psychology_tip, parse_mode="Markdown")
         
-        # Create summary message using HTML parse mode with proper escaping
-        safe_plan = html.escape(trade_plan)
-        safe_daily_trend = html.escape(str(daily_trend))
-        safe_h4_trend = html.escape(str(h4_trend))
-        safe_time = html.escape(str(current_time[:19]))
-        safe_price = html.escape(str(current_price))
-
-        message = (
-            f"<b>🚀 GemEx Trading Analysis Complete</b>\n\n"
-            f"<b>📊 Market Snapshot</b>\n"
-            f"• EURUSD: {safe_price}\n"
-            f"• Daily Trend: {safe_daily_trend}\n"
-            f"• H4 Trend: {safe_h4_trend}\n"
-            f"• Time: {safe_time} UTC\n\n"
-            f"<b>📈 Analysis Scores</b>\n"
-            f"• Plan Quality: {quality_score}/10\n"
-            f"• Confidence: {confidence_score}/10\n\n"
-            f"<b>🔔 MT5 Price Alerts</b>\n"
-            f"• Generated {mt5_alerts_count} alerts for key levels\n"
-            f"• Available in mt5_alerts.json\n\n"
-            f"<b>🎯 Decision</b>\n"
-        )
-
-        if quality_score >= 6 and confidence_score >= 6:
-            message += "🟢 <b>GO FOR EXECUTION</b> - Plan is solid and conviction is high"
-        elif quality_score >= 6 and confidence_score < 6:
-            message += "🟡 <b>WAIT AND SEE</b> - Plan is solid, but market feel is off"
-        else:
-            message += "🔴 <b>NO-GO</b> - DISCARD PLAN - Quality or Confidence too low"
-
-        # Send the summary first in HTML
-        summary_sent = send_telegram_message(message, parse_mode="HTML")
+        # Optional: Send abbreviated plan for GO decisions only
+        plan_sent = True
+        if should_send_details:
+            # Create abbreviated plan focusing on key execution details
+            abbreviated_plan = _create_abbreviated_plan(trade_plan)
+            plan_header = "📋 Key Execution Details\n\n"
+            plan_sent = send_telegram_message(plan_header + abbreviated_plan, parse_mode="Markdown") or \
+                       send_telegram_message(plan_header + abbreviated_plan)
         
-        # Then send the full plan separately as plain text to avoid HTML entity issues in long chunks
-        plan_header = "📋 Complete Trade Plan\n\n"
-        plan_sent = send_telegram_message(plan_header + trade_plan, parse_mode="Markdown") or \
-                    send_telegram_message(plan_header + trade_plan)
-        
-        return summary_sent and plan_sent
+        return summary_sent and details_sent and tip_sent and plan_sent
         
     except Exception as e:
         print(f"❌ Error creating Telegram summary: {e}")
-        return False
+        # Fallback to simplified message
+        try:
+            message_builder = TelegramMessageBuilder()
+            fallback_message = message_builder._build_fallback_message(data_packet, review_scores)
+            return send_telegram_message(fallback_message)
+        except Exception as e2:
+            print(f"❌ Fallback message also failed: {e2}")
+            return False
+
+def _determine_market_condition(daily_trend, h4_trend, quality_score):
+    """Determine market condition for psychology tip selection."""
+    try:
+        # Check for trend alignment
+        daily_bull = 'bull' in str(daily_trend).lower()
+        h4_bull = 'bull' in str(h4_trend).lower()
+        
+        # Simple volatility proxy - if trends don't align, market may be volatile
+        if daily_bull == h4_bull:
+            return 'calm_market'
+        else:
+            return 'volatile_market'
+            
+        # Note: In a full implementation, we could also check:
+        # - Recent win/loss streak from trading history
+        # - VIX levels for market stress
+        # - ATR values for volatility assessment
+        
+    except Exception:
+        return 'general'
+
+def _create_abbreviated_plan(full_plan):
+    """Extract key execution details from full trading plan."""
+    try:
+        lines = full_plan.split('\n')
+        abbreviated_lines = []
+        
+        # Look for key execution sections
+        in_execution_section = False
+        for line in lines:
+            line_lower = line.lower()
+            
+            # Start capturing at key sections
+            if any(keyword in line_lower for keyword in ['entry:', 'stop:', 'target:', 'risk:', 'plan a:', 'execution']):
+                in_execution_section = True
+                abbreviated_lines.append(line)
+            elif in_execution_section and line.strip():
+                # Continue capturing non-empty lines in execution sections
+                if any(keyword in line_lower for keyword in ['entry', 'stop', 'target', 'risk', 'size', 'ratio']):
+                    abbreviated_lines.append(line)
+                elif line.startswith('#'):  # New section header
+                    in_execution_section = False
+            elif line.startswith('##') and any(keyword in line_lower for keyword in ['risk', 'management', 'execution']):
+                # Always include risk management sections
+                abbreviated_lines.append(line)
+                in_execution_section = True
+        
+        # If we couldn't extract specific sections, take first 500 chars
+        if len('\n'.join(abbreviated_lines)) < 100:
+            return full_plan[:500] + "..." if len(full_plan) > 500 else full_plan
+        
+        return '\n'.join(abbreviated_lines)
+        
+    except Exception:
+        # Fallback: return first 500 characters
+        return full_plan[:500] + "..." if len(full_plan) > 500 else full_plan
 
 
 # --- 1. DATA ENGINEERING MODULE ---
