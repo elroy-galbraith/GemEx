@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 import json
 import html
+import re
 from pathlib import Path
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -618,40 +619,174 @@ def _determine_market_condition(daily_trend, h4_trend, quality_score):
         return 'general'
 
 def _create_abbreviated_plan(full_plan):
-    """Extract key execution details from full trading plan."""
+    """Extract key execution details from full trading plan in clean, actionable format."""
     try:
         lines = full_plan.split('\n')
-        abbreviated_lines = []
+        plan_data = {
+            'plan_a': {'entry': None, 'stop': None, 'tp1': None, 'tp2': None, 'rr': None},
+            'plan_b': {'entry': None, 'stop': None, 'tp': None, 'rr': None},
+            'risk_management': []
+        }
         
-        # Look for key execution sections
-        in_execution_section = False
-        for line in lines:
-            line_lower = line.lower()
+        current_plan = None
+        all_prices = []  # Collect all prices for fallback
+        
+        # Extract structured data from the plan
+        for i, line in enumerate(lines):
+            line_clean = line.strip()
+            line_lower = line_clean.lower()
             
-            # Start capturing at key sections
-            if any(keyword in line_lower for keyword in ['entry:', 'stop:', 'target:', 'risk:', 'plan a:', 'execution']):
-                in_execution_section = True
-                abbreviated_lines.append(line)
-            elif in_execution_section and line.strip():
-                # Continue capturing non-empty lines in execution sections
-                if any(keyword in line_lower for keyword in ['entry', 'stop', 'target', 'risk', 'size', 'ratio']):
-                    abbreviated_lines.append(line)
-                elif line.startswith('#'):  # New section header
-                    in_execution_section = False
-            elif line.startswith('##') and any(keyword in line_lower for keyword in ['risk', 'management', 'execution']):
-                # Always include risk management sections
-                abbreviated_lines.append(line)
-                in_execution_section = True
+            # Collect all prices for fallback
+            price_matches = re.findall(r'1\.\d{4}', line_clean)
+            all_prices.extend(price_matches)
+            
+            # Identify which plan we're in
+            if 'plan a:' in line_lower or '3. plan a:' in line_lower or 'primary trade' in line_lower:
+                current_plan = 'plan_a'
+                continue
+            elif 'plan b:' in line_lower or '4. plan b:' in line_lower or 'contingency' in line_lower:
+                current_plan = 'plan_b'
+                continue
+            elif ('execution' in line_lower and 'risk' in line_lower) or 'risk protocols' in line_lower:
+                current_plan = 'risk'
+                continue
+            
+            # Skip JSON alerts and verbose explanations
+            if line_clean.startswith('{') or '"symbol":' in line_clean:
+                continue
+                
+            # Extract key execution details based on current context
+            if current_plan in ['plan_a', 'plan_b']:
+                # Look for entry conditions/triggers/value zones
+                if any(keyword in line_lower for keyword in ['condition:', 'trigger:', 'value zone', 'entry level']):
+                    price_match = re.search(r'1\.\d{4}', line_clean)
+                    if price_match and not plan_data[current_plan]['entry']:
+                        plan_data[current_plan]['entry'] = price_match.group()
+                
+                # Extract stop loss - look for SL or Stop Loss
+                if 'stop loss' in line_lower or 'sl:' in line_lower or '*stop loss*' in line_lower or '**stop loss' in line_lower:
+                    price_match = re.search(r'1\.\d{4}', line_clean)
+                    if price_match:
+                        plan_data[current_plan]['stop'] = price_match.group()
+                
+                # Extract take profits - be more flexible with patterns
+                if 'take profit 1' in line_lower or 'tp1:' in line_lower or '*take profit 1*' in line_lower or '**take profit 1' in line_lower:
+                    price_match = re.search(r'1\.\d{4}', line_clean)
+                    if price_match:
+                        plan_data[current_plan]['tp1'] = price_match.group()
+                elif 'take profit 2' in line_lower or 'tp2:' in line_lower or '*take profit 2*' in line_lower or '**take profit 2' in line_lower:
+                    price_match = re.search(r'1\.\d{4}', line_clean)
+                    if price_match:
+                        plan_data[current_plan]['tp2'] = price_match.group()
+                elif ('take profit' in line_lower or 'tp:' in line_lower) and current_plan == 'plan_b':
+                    # For Plan B, single take profit
+                    price_match = re.search(r'1\.\d{4}', line_clean)
+                    if price_match and not plan_data[current_plan]['tp']:
+                        plan_data[current_plan]['tp'] = price_match.group()
+                
+                # Extract risk/reward ratio
+                if 'risk/reward' in line_lower or 'r:r' in line_lower or 'r&r' in line_lower:
+                    rr_match = re.search(r'~?1:(\d+\.?\d*)', line_clean)
+                    if rr_match:
+                        plan_data[current_plan]['rr'] = f"1:{rr_match.group(1)}"
+            
+            # Extract essential risk management
+            elif current_plan == 'risk':
+                if ('capital at risk' in line_lower or ('risk' in line_lower and '%' in line_clean)):
+                    plan_data['risk_management'].append(line_clean.replace('**', '').replace('*', '').strip())
+                elif 'maximum daily loss' in line_lower:
+                    plan_data['risk_management'].append(line_clean.replace('**', '').replace('*', '').strip())
         
-        # If we couldn't extract specific sections, take first 500 chars
-        if len('\n'.join(abbreviated_lines)) < 100:
-            return full_plan[:500] + "..." if len(full_plan) > 500 else full_plan
+        # Try to extract missing entry prices from Price Alert sections
+        if not plan_data['plan_a']['entry'] or not plan_data['plan_b']['entry']:
+            for line in lines:
+                line_lower = line.lower()
+                if 'ask <' in line_lower:  # Long entry alert
+                    price_match = re.search(r'1\.\d{4}', line)
+                    if price_match and not plan_data['plan_a']['entry']:
+                        plan_data['plan_a']['entry'] = price_match.group()
+                elif 'bid >' in line_lower:  # Short entry alert
+                    price_match = re.search(r'1\.\d{4}', line)
+                    if price_match and not plan_data['plan_b']['entry']:
+                        plan_data['plan_b']['entry'] = price_match.group()
         
-        return '\n'.join(abbreviated_lines)
+        # Build clean, actionable summary
+        summary_lines = []
         
+        # Plan A (Primary)
+        if any(plan_data['plan_a'].values()):
+            summary_lines.append("**🎯 PRIMARY PLAN (A)**")
+            if plan_data['plan_a']['entry']:
+                summary_lines.append(f"• Entry: {plan_data['plan_a']['entry']}")
+            if plan_data['plan_a']['stop']:
+                summary_lines.append(f"• Stop: {plan_data['plan_a']['stop']}")
+            if plan_data['plan_a']['tp1']:
+                summary_lines.append(f"• TP1: {plan_data['plan_a']['tp1']}")
+            if plan_data['plan_a']['tp2']:
+                summary_lines.append(f"• TP2: {plan_data['plan_a']['tp2']}")
+            if plan_data['plan_a']['rr']:
+                summary_lines.append(f"• R:R: {plan_data['plan_a']['rr']}")
+            summary_lines.append("")
+        
+        # Plan B (Contingency)
+        if any(plan_data['plan_b'].values()):
+            summary_lines.append("**🔄 CONTINGENCY PLAN (B)**")
+            if plan_data['plan_b']['entry']:
+                summary_lines.append(f"• Entry: {plan_data['plan_b']['entry']}")
+            if plan_data['plan_b']['stop']:
+                summary_lines.append(f"• Stop: {plan_data['plan_b']['stop']}")
+            if plan_data['plan_b']['tp']:
+                summary_lines.append(f"• TP: {plan_data['plan_b']['tp']}")
+            if plan_data['plan_b']['rr']:
+                summary_lines.append(f"• R:R: {plan_data['plan_b']['rr']}")
+            summary_lines.append("")
+        
+        # Essential risk management (clean up formatting)
+        if plan_data['risk_management']:
+            summary_lines.append("**⚖️ RISK MANAGEMENT**")
+            for rule in plan_data['risk_management'][:2]:  # Limit to 2 most important rules
+                summary_lines.append(f"• {rule}")
+        
+        result = '\n'.join(summary_lines).strip()
+        
+        # Fallback if extraction failed - use collected prices
+        if len(result) < 50:
+            return _create_fallback_plan(full_plan, all_prices)
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ Error creating abbreviated plan: {e}")
+        return _create_fallback_plan(full_plan)
+
+
+def _create_fallback_plan(full_plan, all_prices=None):
+    """Create a simple fallback plan when structured extraction fails."""
+    try:
+        # Look for any price levels mentioned
+        if all_prices is None:
+            price_matches = re.findall(r'1\.\d{4}', full_plan)
+        else:
+            price_matches = list(set(all_prices))  # Remove duplicates
+            
+        if len(price_matches) >= 3:
+            # Assume first few prices are entry, stop, targets
+            return (
+                f"**🎯 EXECUTION SUMMARY**\n"
+                f"• Key Levels: {', '.join(price_matches[:4])}\n"
+                f"• Risk 0.75% on primary setup\n"
+                f"• Plan details in full analysis"
+            )
+        else:
+            # Very basic fallback
+            return (
+                f"**🎯 EXECUTION SUMMARY**\n"
+                f"• Review full plan for entry details\n"
+                f"• Standard risk management applies\n"
+                f"• Wait for confirmed setups"
+            )
     except Exception:
-        # Fallback: return first 500 characters
-        return full_plan[:500] + "..." if len(full_plan) > 500 else full_plan
+        return "**🎯 EXECUTION SUMMARY**\n• See full plan for details"
 
 
 # --- 1. DATA ENGINEERING MODULE ---
