@@ -488,110 +488,417 @@ def _send_split_messages(message, parse_mode, max_length):
     return success_count == len(chunks)
 
 def send_trading_summary(data_packet, trade_plan_path, review_scores_path):
-    """Send a summary of the trading analysis to Telegram using new concise format."""
+    """Send the raw LLM-generated trade plan as a single Telegram message.
+
+    This bypasses all formatting/parsing and sends the Markdown content directly
+    as plain text (Telegram parse_mode disabled). Long messages are auto-split.
+    """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
-    
+
     try:
-        # Read the trade plan
         with open(trade_plan_path, 'r') as f:
             trade_plan = f.read()
-        
-        # Read the review scores
-        with open(review_scores_path, 'r') as f:
-            review_scores = json.load(f)
-        
-        # Read MT5 alerts if available
-        mt5_alerts_count = 0
-        try:
-            with open(MT5_ALERTS_PATH, 'r') as f:
-                mt5_alerts = json.load(f)
-                mt5_alerts_count = mt5_alerts.get('metadata', {}).get('total_alerts', 0)
-        except (FileNotFoundError, json.JSONDecodeError):
-            pass
-        
-        # Initialize message builder
-        message_builder = TelegramMessageBuilder()
-        
-        # Check for critical warnings first
-        critical_warning = message_builder.check_critical_warnings(data_packet, review_scores)
-        if critical_warning:
-            # Send critical warning and full details
-            warning_sent = send_telegram_message(critical_warning, parse_mode="Markdown")
-            full_plan_sent = send_telegram_message(f"📋 Full Plan\n\n{trade_plan}", parse_mode="Markdown")
-            return warning_sent and full_plan_sent
-        
-        # Build primary summary message (always send)
-        summary_message = message_builder.build_summary_message(
-            data_packet, review_scores, mt5_alerts_count
-        )
-        
-        # Determine if we should send additional details based on decision
-        quality_score = review_scores['planQualityScore']['score']
-        confidence_score = review_scores['confidenceScore']['score']
-        is_go_decision = quality_score >= 6 and confidence_score >= 6
-        
-        # Send primary summary message
-        summary_sent = send_telegram_message(summary_message, parse_mode="Markdown")
-        
-        # Initialize message tracking
-        messages_sent = [summary_sent]
-        
-        # Conditionally send technical details for GO decisions
-        if is_go_decision:
-            technical_details = message_builder.build_technical_details(data_packet)
-            if technical_details:
-                tech_sent = send_telegram_message(technical_details, parse_mode="Markdown")
-                messages_sent.append(tech_sent)
-        
-        # Check if risk details are needed (when position sizing differs)
-        position_differs = _position_differs_from_standard(data_packet, review_scores)
-        if position_differs:
-            risk_details = message_builder.build_risk_details(data_packet, True)
-            if risk_details:
-                risk_sent = send_telegram_message(risk_details, parse_mode="Markdown")
-                messages_sent.append(risk_sent)
-        
-        # Send context-aware psychology tip
-        daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
-        h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
-        market_condition = _determine_market_condition(daily_trend, h4_trend, quality_score)
-        
-        psychology_tip = message_builder.get_daily_psychology_tip(market_condition)
-        tip_sent = send_telegram_message(psychology_tip, parse_mode="Markdown")
-        messages_sent.append(tip_sent)
-        
-        # For GO decisions, send abbreviated execution plan
-        if is_go_decision:
-            abbreviated_plan = _create_abbreviated_plan(trade_plan)
-            if abbreviated_plan and len(abbreviated_plan.strip()) > 50:  # Only if meaningful content
-                plan_header = "⚡ EXECUTION PLAN\n━━━━━━━━━━━━━━━━━━\n"
-                plan_sent = send_telegram_message(plan_header + abbreviated_plan, parse_mode="Markdown") or \
-                           send_telegram_message(plan_header + abbreviated_plan)
-                messages_sent.append(plan_sent)
-        
-        # Return success if all critical messages were sent
-        return all(messages_sent)
-        
-    except (KeyError, TypeError) as e:
-        print(f"❌ Data structure error in Telegram summary: {e}")
-        # Fallback to simplified message
-        try:
-            message_builder = TelegramMessageBuilder()
-            fallback_message = message_builder._build_fallback_message(data_packet, review_scores)
-            return send_telegram_message(fallback_message)
-        except (AttributeError, KeyError) as e2:
-            print(f"❌ Fallback message also failed: {e2}")
-            return False
-    except (ConnectionError, requests.exceptions.RequestException) as e:
-        print(f"❌ Network error sending Telegram message: {e}")
-        return False
+
+        # Send as plain text to avoid Telegram Markdown parsing issues.
+        # Implement headerless splitting to keep the content truly raw.
+        max_length = 4000
+        if len(trade_plan) <= max_length:
+            return _send_single_message(trade_plan, parse_mode=None)
+
+        # Split by lines to avoid breaking content mid-line
+        lines = trade_plan.split('\n')
+        chunks = []
+        current_chunk = ""
+        for line in lines:
+            if len(current_chunk) + len(line) + 1 > max_length:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = line
+            else:
+                current_chunk += ('\n' if current_chunk else '') + line
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+
+        success = True
+        for chunk in chunks:
+            if not _send_single_message(chunk, parse_mode=None):
+                success = False
+        return success
     except Exception as e:
-        print(f"❌ Unexpected error creating Telegram summary: {e}")
-        # Log the full exception for debugging
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Error sending raw trading plan: {e}")
         return False
+
+def build_enhanced_summary(data_packet, quality_score, consistency_score, current_price, market_sentiment):
+    """Build the main summary message."""
+    date_str = datetime.now().strftime("%m/%d")
+    
+    # Determine decision
+    is_go = quality_score >= 7 and consistency_score >= 7
+    decision_emoji = "✅" if is_go else "❌"
+    decision_text = "GO" if is_go else "NO GO"
+    
+    # Get sentiment emoji
+    sentiment_emoji = "📈" if market_sentiment == "Bullish" else "📉" if market_sentiment == "Bearish" else "🔄"
+    
+    return f"""📊 MARKET PLAN SUMMARY - {date_str}
+━━━━━━━━━━━━━━━━━━
+🎯 EURUSD: {decision_emoji} {decision_text}
+   Price: ${current_price}
+   Scores: Q{quality_score}/C{consistency_score}
+
+📈 Market: {sentiment_emoji} {market_sentiment.upper()}
+
+{'✅ Plan is solid and conviction is high' if is_go else '⚠️ Plan needs review'}
+
+⚡ Action: {'Prepare for execution' if is_go else 'Wait for better setup'}
+━━━━━━━━━━━━━━━━━"""
+
+def build_technical_analysis_message(scratchpad, trade_plan):
+    """Build detailed technical analysis message."""
+    try:
+        # Extract chart analysis from scratchpad
+        daily_analysis = scratchpad.get('Daily_chart', {})
+        h4_analysis = scratchpad.get('4H_chart', {})
+        h1_analysis = scratchpad.get('1H_chart', {})
+        
+        # Extract key levels from trade plan
+        import re
+        levels = re.findall(r'(\d+\.\d{4})', trade_plan)
+        
+        # Extract trend information from scratchpad
+        trend_info = extract_trend_analysis_from_scratchpad(scratchpad)
+        
+        # Extract technical signals from scratchpad
+        signals = extract_technical_signals_from_scratchpad(scratchpad)
+        
+        message = f"""📈 TECHNICAL ANALYSIS
+━━━━━━━━━━━━━━━━━━
+🎯 TREND DIRECTION: {trend_info.get('direction', 'N/A')}
+📊 KEY LEVELS:
+• Support: {', '.join(levels[:3]) if levels else 'N/A'}
+• Resistance: {', '.join(levels[3:6]) if len(levels) > 3 else 'N/A'}
+
+🔍 TECHNICAL SIGNALS:
+• MACD: {signals.get('macd', 'N/A')}
+• EMA Cross: {signals.get('ema_cross', 'N/A')}
+• Chart Pattern: {signals.get('pattern', 'N/A')}
+
+📊 TIMEFRAME ALIGNMENT:
+• Daily: {daily_analysis.get('bias', 'N/A')}
+• 4H: {h4_analysis.get('bias', 'N/A')}
+• 1H: {h1_analysis.get('bias', 'N/A')}"""
+        
+        return message
+        
+    except Exception as e:
+        print(f"Error building technical analysis: {e}")
+        return None
+
+def build_trading_setup_message(trade_plan, scratchpad):
+    """Build detailed trading setup message."""
+    try:
+        # Extract trading setup from plan
+        setup = extract_trading_setup(trade_plan)
+        
+        if not setup.get('entry_level'):
+            return None
+        
+        message = f"""⚡ TRADING SETUP
+━━━━━━━━━━━━━━━━━━
+🎯 ENTRY STRATEGY:
+• Entry Level: {setup.get('entry_level', 'N/A')}
+• Entry Reason: {setup.get('entry_reason', 'N/A')}
+
+🛡️ RISK MANAGEMENT:
+• Stop Loss: {setup.get('stop_loss', 'N/A')}
+• Take Profit 1: {setup.get('take_profit_1', 'N/A')}
+• Take Profit 2: {setup.get('take_profit_2', 'N/A')}
+• Risk-Reward: {setup.get('risk_reward', 'N/A')}
+
+💰 POSITION SIZING:
+• Position Size: {setup.get('position_size', 'N/A')}
+• Risk Amount: {setup.get('risk_amount', 'N/A')}
+• Max Risk: {setup.get('max_risk', 'N/A')}%"""
+        
+        return message
+        
+    except Exception as e:
+        print(f"Error building trading setup: {e}")
+        return None
+
+def build_intermarket_message(scratchpad):
+    """Build intermarket analysis message."""
+    try:
+        intermarket = scratchpad.get('intermarket_analysis', {})
+        
+        if not intermarket:
+            return None
+        
+        # Map the intermarket data to display format
+        dollar_bias = intermarket.get('dollar_bias', 'N/A')
+        risk_sentiment = intermarket.get('risk_sentiment', 'N/A')
+        rate_environment = intermarket.get('rate_environment', 'N/A')
+        overall_bias = intermarket.get('overall_bias', 'N/A')
+        
+        # Convert to display format
+        dxy_display = "📈 STRONG" if dollar_bias == "strong" else "📉 WEAK" if dollar_bias == "weak" else "🔄 NEUTRAL"
+        spx_display = "📈 RISK-ON" if risk_sentiment == "risk-on" else "📉 RISK-OFF" if risk_sentiment == "risk-off" else "🔄 MIXED"
+        us10y_display = "📈 HAWKISH" if rate_environment == "hawkish" else "📉 DOVISH" if rate_environment == "dovish" else "🔄 NEUTRAL"
+        eurjpy_display = "📈 BULLISH" if overall_bias == "bullish" else "📉 BEARISH" if overall_bias == "bearish" else "🔄 NEUTRAL"
+        
+        message = f"""🌍 INTERMARKET CONTEXT
+━━━━━━━━━━━━━━━━━━
+• DXY: {dxy_display}
+• SPX500: {spx_display}
+• US10Y: {us10y_display}
+• EURJPY: {eurjpy_display}
+
+💡 MARKET SENTIMENT: {overall_bias.upper()}
+📊 RISK APPETITE: {risk_sentiment.upper()}"""
+        
+        return message
+        
+    except Exception as e:
+        print(f"Error building intermarket message: {e}")
+        return None
+
+def build_risk_management_message(trade_plan, quality_score):
+    """Build risk management message."""
+    try:
+        # Extract risk information
+        risk_info = extract_risk_management(trade_plan)
+        
+        message = f"""🛡️ RISK MANAGEMENT
+━━━━━━━━━━━━━━━━━━
+• Max Risk per Trade: {risk_info.get('max_risk', 'N/A')}%
+• Risk-Reward Ratio: {risk_info.get('risk_reward', 'N/A')}
+• Position Size: {risk_info.get('position_size', 'N/A')}
+• Stop Loss: {risk_info.get('stop_loss', 'N/A')}
+
+⚠️ RISK WARNINGS:
+• Quality Score: {quality_score}/10
+• Market Conditions: {risk_info.get('market_conditions', 'N/A')}
+• Key Events: {risk_info.get('key_events', 'N/A')}"""
+        
+        return message
+        
+    except Exception as e:
+        print(f"Error building risk management: {e}")
+        return None
+
+def extract_trend_analysis_from_scratchpad(scratchpad):
+    """Extract trend analysis from scratchpad data."""
+    analysis = {}
+    
+    # Get overall bias from intermarket analysis
+    intermarket = scratchpad.get('intermarket_analysis', {})
+    overall_bias = intermarket.get('overall_bias', 'neutral')
+    
+    if overall_bias == 'bullish':
+        analysis['direction'] = '📈 BULLISH'
+    elif overall_bias == 'bearish':
+        analysis['direction'] = '📉 BEARISH'
+    else:
+        analysis['direction'] = '🔄 SIDEWAYS'
+    
+    return analysis
+
+def extract_technical_signals_from_scratchpad(scratchpad):
+    """Extract technical signals from scratchpad data."""
+    signals = {}
+    
+    # Get MACD signal from chart analysis
+    daily_analysis = scratchpad.get('Daily_chart', {})
+    h4_analysis = scratchpad.get('4H_chart', {})
+    
+    # Check for MACD signals in momentum descriptions
+    momentum_text = ""
+    if 'momentum' in daily_analysis:
+        momentum_text += daily_analysis['momentum'].lower()
+    if 'momentum' in h4_analysis:
+        momentum_text += h4_analysis['momentum'].lower()
+    
+    if 'macd' in momentum_text:
+        if 'positive' in momentum_text or 'bullish' in momentum_text:
+            signals['macd'] = '🟢 BULLISH'
+        elif 'negative' in momentum_text or 'bearish' in momentum_text:
+            signals['macd'] = '🔴 BEARISH'
+        else:
+            signals['macd'] = '🟡 NEUTRAL'
+    else:
+        signals['macd'] = 'N/A'
+    
+    # Check for EMA cross signals
+    if 'cross' in momentum_text and 'ema' in momentum_text:
+        signals['ema_cross'] = '✅ CROSSOVER DETECTED'
+    else:
+        signals['ema_cross'] = 'N/A'
+    
+    # Extract chart patterns
+    patterns = []
+    for chart in [daily_analysis, h4_analysis, scratchpad.get('1H_chart', {})]:
+        if 'patterns' in chart:
+            patterns.extend(chart['patterns'])
+    
+    pattern_text = ' '.join(patterns).lower()
+    if 'double top' in pattern_text:
+        signals['pattern'] = 'DOUBLE TOP'
+    elif 'double bottom' in pattern_text:
+        signals['pattern'] = 'DOUBLE BOTTOM'
+    elif 'head and shoulders' in pattern_text:
+        signals['pattern'] = 'HEAD AND SHOULDERS'
+    elif 'triangle' in pattern_text:
+        signals['pattern'] = 'TRIANGLE'
+    elif 'flag' in pattern_text:
+        signals['pattern'] = 'FLAG'
+    else:
+        signals['pattern'] = 'N/A'
+    
+    return signals
+
+def extract_trend_analysis(trade_plan):
+    """Extract trend analysis from trade plan."""
+    analysis = {}
+    
+    # Extract trend direction
+    if 'bullish' in trade_plan.lower():
+        analysis['direction'] = '📈 BULLISH'
+    elif 'bearish' in trade_plan.lower():
+        analysis['direction'] = '📉 BEARISH'
+    else:
+        analysis['direction'] = '🔄 SIDEWAYS'
+    
+    return analysis
+
+def extract_technical_signals(trade_plan):
+    """Extract technical signals from trade plan."""
+    signals = {}
+    
+    # Extract MACD signal
+    if 'macd' in trade_plan.lower():
+        if 'bullish' in trade_plan.lower():
+            signals['macd'] = '🟢 BULLISH'
+        elif 'bearish' in trade_plan.lower():
+            signals['macd'] = '🔴 BEARISH'
+        else:
+            signals['macd'] = '🟡 NEUTRAL'
+    else:
+        signals['macd'] = 'N/A'
+    
+    # Extract EMA cross
+    if 'ema' in trade_plan.lower() and 'cross' in trade_plan.lower():
+        signals['ema_cross'] = '✅ CROSSOVER DETECTED'
+    else:
+        signals['ema_cross'] = 'N/A'
+    
+    # Extract chart pattern
+    patterns = ['head and shoulders', 'double top', 'double bottom', 'triangle', 'flag', 'pennant']
+    for pattern in patterns:
+        if pattern in trade_plan.lower():
+            signals['pattern'] = pattern.upper()
+            break
+    else:
+        signals['pattern'] = 'N/A'
+    
+    return signals
+
+def extract_trading_setup(trade_plan):
+    """Extract trading setup from trade plan."""
+    setup = {}
+    
+    import re
+    
+    # Extract entry zone (look for patterns like "1.1680 - 1.1695")
+    entry_zone_match = re.search(r'(\d+\.\d{4})\s*-\s*(\d+\.\d{4})', trade_plan)
+    if entry_zone_match:
+        setup['entry_level'] = f"{entry_zone_match.group(1)}-{entry_zone_match.group(2)}"
+    else:
+        # Try single entry level
+        entry_match = re.search(r'entry[:\s]+(\d+\.\d{4})', trade_plan.lower())
+        if entry_match:
+            setup['entry_level'] = entry_match.group(1)
+        else:
+            setup['entry_level'] = 'N/A'
+    
+    # Extract stop loss (look for "Stop Loss (SL): 1.1725")
+    stop_match = re.search(r'stop\s+loss[:\s]+(\d+\.\d{4})', trade_plan.lower())
+    if stop_match:
+        setup['stop_loss'] = stop_match.group(1)
+    else:
+        setup['stop_loss'] = 'N/A'
+    
+    # Extract take profit levels (look for "Take Profit (TP): 1.1655")
+    tp_matches = re.findall(r'take\s+profit[:\s]+(\d+\.\d{4})', trade_plan.lower())
+    if tp_matches:
+        setup['take_profit_1'] = tp_matches[0]
+        setup['take_profit_2'] = tp_matches[1] if len(tp_matches) > 1 else 'N/A'
+    else:
+        setup['take_profit_1'] = 'N/A'
+        setup['take_profit_2'] = 'N/A'
+    
+    # Extract risk-reward ratio (look for "1:1.15")
+    rr_match = re.search(r'(\d+\.?\d*):(\d+\.?\d*)', trade_plan)
+    if rr_match:
+        setup['risk_reward'] = f"{rr_match.group(1)}:{rr_match.group(2)}"
+    else:
+        setup['risk_reward'] = 'N/A'
+    
+    # Extract position size (look for "Risk 1% of capital")
+    size_match = re.search(r'risk[:\s]+(\d+\.?\d*)%', trade_plan.lower())
+    if size_match:
+        setup['position_size'] = f"{size_match.group(1)}%"
+    else:
+        setup['position_size'] = 'N/A'
+    
+    # Extract risk amount
+    risk_match = re.search(r'risk[:\s]+(\d+\.?\d*)', trade_plan.lower())
+    if risk_match:
+        setup['risk_amount'] = risk_match.group(1)
+    else:
+        setup['risk_amount'] = 'N/A'
+    
+    # Extract entry reason from trade thesis
+    if 'breakout' in trade_plan.lower():
+        setup['entry_reason'] = 'Breakout Strategy'
+    elif 'pullback' in trade_plan.lower():
+        setup['entry_reason'] = 'Pullback Strategy'
+    elif 'reversal' in trade_plan.lower():
+        setup['entry_reason'] = 'Reversal Strategy'
+    elif 'breakdown' in trade_plan.lower():
+        setup['entry_reason'] = 'Breakdown Strategy'
+    else:
+        setup['entry_reason'] = 'Technical Setup'
+    
+    return setup
+
+def extract_risk_management(trade_plan):
+    """Extract risk management information from trade plan."""
+    risk = {}
+    
+    # Extract max risk
+    import re
+    risk_match = re.search(r'max[:\s]+(\d+\.?\d*)%', trade_plan.lower())
+    if risk_match:
+        risk['max_risk'] = risk_match.group(1)
+    else:
+        risk['max_risk'] = 'N/A'
+    
+    # Extract market conditions
+    if 'volatile' in trade_plan.lower():
+        risk['market_conditions'] = 'High Volatility'
+    elif 'calm' in trade_plan.lower():
+        risk['market_conditions'] = 'Low Volatility'
+    else:
+        risk['market_conditions'] = 'Normal'
+    
+    # Extract key events
+    if 'news' in trade_plan.lower() or 'event' in trade_plan.lower():
+        risk['key_events'] = 'High Impact News Expected'
+    else:
+        risk['key_events'] = 'No Major Events'
+    
+    return risk
 
 def _position_differs_from_standard(data_packet, review_scores):
     """Check if position sizing differs from standard rules."""
@@ -1163,6 +1470,29 @@ def run_agent(prompt_parts, system_instruction=None, images=None):
         print(f"❌ Error in run_agent: {e}")
         return ""
 
+def parse_agent_response(response_text):
+    """Parse agent response, handling markdown code blocks."""
+    if not response_text:
+        return None
+    
+    # Try to extract JSON from markdown code blocks
+    import re
+    json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    
+    # Try to parse as direct JSON
+    try:
+        return json.loads(response_text)
+    except json.JSONDecodeError:
+        pass
+    
+    # If all else fails, return the raw text
+    return {"raw_response": response_text}
+
 def load_latest_chart(symbol_tf):
     """Finds the latest chart for a given symbol_tf (like 'EURUSD_1H')."""
     latest_file, latest_time = None, None
@@ -1217,10 +1547,10 @@ def chart_agent(timeframe, images):
         images=images
     )
 
-    try:
-        notes_dict = json.loads(raw)
-    except Exception as e:
-        notes_dict = {"error": f"Invalid JSON output or error: {raw} - {e}"}
+    # Parse the response using the new parsing function
+    notes_dict = parse_agent_response(raw)
+    if not notes_dict:
+        notes_dict = {"error": "No response from agent"}
 
     save_to_scratchpad(f"{timeframe}_chart", notes_dict)
 
@@ -1256,10 +1586,10 @@ def intermarket_agent():
     raw = run_agent([types.Part.from_text(text=json.dumps(enhanced_data, indent=2))], 
                    system_instruction=system_inst)
     
-    try:
-        notes_dict = json.loads(raw)
-    except Exception as e:
-        notes_dict = {"error": f"Invalid JSON output: {raw}"}
+    # Parse the response using the new parsing function
+    notes_dict = parse_agent_response(raw)
+    if not notes_dict:
+        notes_dict = {"error": "No response from agent"}
     
     save_to_scratchpad("intermarket_analysis", notes_dict)
 
@@ -1319,10 +1649,10 @@ def news_agent(events_text):
     """
     raw = run_agent([types.Part.from_text(text=events_text)], system_instruction=system_inst)
 
-    try:
-        notes_dict = json.loads(raw)
-    except Exception as e:
-        notes_dict = {"error": f"Invalid JSON output or error: {raw} - {e}"}
+    # Parse the response using the new parsing function
+    notes_dict = parse_agent_response(raw)
+    if not notes_dict:
+        notes_dict = {"error": "No response from agent"}
 
     save_to_scratchpad("news_events", notes_dict)
 
