@@ -99,8 +99,8 @@ class TelegramMessageBuilder:
             # Extract key data
             current_price = data_packet["marketSnapshot"]["currentPrice"]
             current_time = data_packet["marketSnapshot"]["currentTimeUTC"] 
-            daily_trend = data_packet["multiTimeframeAnalysis"]["Daily"]["trendDirection"]
             h4_trend = data_packet["multiTimeframeAnalysis"]["H4"]["trendDirection"]
+            h1_trend = data_packet["multiTimeframeAnalysis"]["H1"]["trendDirection"]
             
             quality_score = review_scores['planQualityScore']['score']
             confidence_score = review_scores['confidenceScore']['score']
@@ -112,19 +112,19 @@ class TelegramMessageBuilder:
             decision_data = self._get_decision_data(quality_score, confidence_score)
             
             # Get market bias emoji
-            market_emoji = self._get_market_emoji(daily_trend, h4_trend)
+            market_emoji = self._get_market_emoji(h4_trend, h1_trend)
             
             # Calculate VIX level placeholder (would need actual VIX data)
             vix_level = "N/A"  # Placeholder - could extract from SPX500 volatility
             
             # Build primary message
             message = (
-                f"📊 MARKET PLAN SUMMARY - {date_str}\n"
+                f"📊 DAY TRADING PLAN - {date_str}\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"🎯 EURUSD: {decision_data['emoji']} {decision_data['decision']}\n"
                 f"   Price: ${current_price:.4f}\n"
                 f"   Scores: Q{quality_score}/C{confidence_score}\n\n"
-                f"📈 Market: {market_emoji} {self._get_market_bias(daily_trend, h4_trend)} (VIX: {vix_level})\n\n"
+                f"📈 Market: {market_emoji} {self._get_market_bias(h4_trend, h1_trend)} (VIX: {vix_level})\n\n"
                 f"{decision_data['reason']}\n\n"
                 f"⚡ Action: {decision_data['next_step']}\n"
                 f"━━━━━━━━━━━━━━━━━"
@@ -139,32 +139,32 @@ class TelegramMessageBuilder:
     def build_technical_details(self, data_packet):
         """Build technical analysis details message (conditional)."""
         try:
-            daily_analysis = data_packet["multiTimeframeAnalysis"]["Daily"]
             h4_analysis = data_packet["multiTimeframeAnalysis"]["H4"]
             h1_analysis = data_packet["multiTimeframeAnalysis"]["H1"]
+            m15_analysis = data_packet["multiTimeframeAnalysis"].get("M15", {})
             
             message = (
-                f"📈 TECHNICAL DETAILS\n"
+                f"📈 INTRADAY TECHNICAL DETAILS\n"
                 f"━━━━━━━━━━━━━━━━━━\n"
                 f"**Timeframe Alignment:**\n"
-                f"• Daily: {daily_analysis.get('trendDirection', 'N/A')}\n"
-                f"• H4: {h4_analysis.get('trendDirection', 'N/A')}\n" 
-                f"• H1: {h1_analysis.get('trendDirection', 'N/A')}\n\n"
+                f"• 4H: {h4_analysis.get('trendDirection', 'N/A')} (Primary Bias)\n"
+                f"• 1H: {h1_analysis.get('trendDirection', 'N/A')} (Entry Context)\n"
+                f"• 15M: {m15_analysis.get('trendDirection', 'N/A')} (Execution)\n\n"
             )
             
             # Add key levels with smart filtering
             levels_added = 0
             max_levels = 4  # Limit to most important levels
             
-            if 'keySupportLevels' in daily_analysis and daily_analysis['keySupportLevels']:
-                support_levels = daily_analysis['keySupportLevels'][:2]  # Top 2
+            if 'keySupportLevels' in h4_analysis and h4_analysis['keySupportLevels']:
+                support_levels = h4_analysis['keySupportLevels'][:2]  # Top 2
                 for level in support_levels:
                     if levels_added < max_levels:
                         message += f"🟢 Support: {level:.4f}\n"
                         levels_added += 1
                         
-            if 'keyResistanceLevels' in daily_analysis and daily_analysis['keyResistanceLevels']:
-                resistance_levels = daily_analysis['keyResistanceLevels'][:2]  # Top 2
+            if 'keyResistanceLevels' in h4_analysis and h4_analysis['keyResistanceLevels']:
+                resistance_levels = h4_analysis['keyResistanceLevels'][:2]  # Top 2
                 for level in resistance_levels:
                     if levels_added < max_levels:
                         message += f"🔴 Resistance: {level:.4f}\n"
@@ -1234,9 +1234,15 @@ def export_charts():
     """Generate charts for all timeframes with technical indicators"""
     print("\n--- STAGE 1.5: GENERATING CHARTS ---")
     
-    # Configuration for chart generation
+    # Configuration for chart generation - Day Trading Focus
     symbol = 'EURUSD=X'
     timeframes = {
+        '15M': {
+            'period': '7d',
+            'interval': '15m',
+            'display_candles': 300,
+            'min_data_needed': 400
+        },
         '1H': {
             'period': '30d',
             'interval': '1h',
@@ -1248,12 +1254,6 @@ def export_charts():
             'interval': '1h',
             'display_candles': 150,
             'min_data_needed': 200
-        },
-        'Daily': {
-            'period': '2y',
-            'interval': '1d',
-            'display_candles': 100,
-            'min_data_needed': 250
         }
     }
     
@@ -2207,9 +2207,9 @@ def generate_viper_packet():
     with open(scratchpad_path, "w") as f:
         json.dump({}, f)
     
-    # 3. Run chart agents
+    # 3. Run chart agents - Day Trading Timeframes
     print("\n--- STAGE 2: RUNNING CHART AGENTS ---")
-    for tf in ["Daily", "4H", "1H"]:
+    for tf in ["4H", "1H", "15M"]:
         imgs = load_latest_chart(f"EURUSD_{tf}")
         if imgs:
             print(f"Analyzing {tf} chart...")
@@ -2253,15 +2253,8 @@ def create_compatibility_packet():
         # Get previous session context
         previous_context = get_previous_session_analysis()
         
-        # Create basic multi-timeframe analysis for compatibility
+        # Create basic multi-timeframe analysis for day trading
         multi_tf = {
-            "Daily": {
-                "trendDirection": "Analysis from chart agents",
-                "keySupportLevels": [],
-                "keyResistanceLevels": [],
-                "emaStatus": {"50_ema": "N/A", "200_ema": "N/A"},
-                "rsi_14": None
-            },
             "H4": {
                 "trendDirection": "Analysis from chart agents", 
                 "keySupportLevels": [],
@@ -2270,6 +2263,13 @@ def create_compatibility_packet():
                 "rsi_14": None
             },
             "H1": {
+                "trendDirection": "Analysis from chart agents",
+                "keySupportLevels": [],
+                "keyResistanceLevels": [],
+                "emaStatus": {"50_ema": "N/A", "200_ema": "N/A"},
+                "rsi_14": None
+            },
+            "M15": {
                 "trendDirection": "Analysis from chart agents",
                 "keySupportLevels": [],
                 "keyResistanceLevels": [],

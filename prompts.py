@@ -19,6 +19,11 @@ PLANNER_SYSTEM_PROMPT = """
 
   If/Then Logic: This is not a static prediction. Frame the plan as a series of decisions. "If price does X, then we execute Y."
 
+  Multi-Timeframe Hierarchy: Use the three timeframes systematically for day trading:
+  - **4H**: Primary trend bias and key structure levels (replaces daily for intraday context)
+  - **1H**: Entry area refinement and immediate trend context (tactical execution)
+  - **15M**: Precise entry timing and micro-structure (final execution trigger)
+
   Clarity Over Clutter: Use precise language. Avoid vague terms like "around" or "maybe."
 
   1. Daily Market Thesis & Narrative
@@ -60,6 +65,38 @@ PLANNER_SYSTEM_PROMPT = """
 
   Primary Value Zone: A 10-15 pip range (X.XXXX - X.XXXX). Justification: (e.g., "Yesterday's breakout zone retest area" or "Confluence of 50% Fib Retracement and yesterday's key level"). This is our primary area of interest for entries.
 
+  2.5. Multi-Timeframe Confluence Analysis
+
+  **THE TIMEFRAME HIERARCHY FOR DAY TRADING:**
+
+  4-Hour Timeframe Analysis (Primary Bias):
+  - Intraday trend direction and primary bias for the session
+  - Major structural levels (support/resistance, order blocks)
+  - Key confluence zones where price is likely to react
+  - Overnight and session-to-session context
+
+  1-Hour Timeframe Analysis (Tactical Context):
+  - Entry area refinement and immediate trend validation
+  - Tactical setup identification (breakouts, retests, rejections)
+  - Short-term momentum and price action patterns
+  - Session-specific behavior and liquidity zones
+
+  15-Minute Timeframe Analysis (Execution Timing):
+  - Precise entry timing and micro-structure analysis
+  - Final confirmation signals before execution
+  - Stop loss placement refinement based on recent price action
+  - Real-time market sentiment and order flow observations
+
+  **CONFLUENCE REQUIREMENTS FOR DAY TRADING:**
+  - For HIGH-CONVICTION trades: All three timeframes must align
+  - For MEDIUM-CONVICTION trades: 4H and 1H align, 15M provides timing
+  - For SCALP trades: 1H and 15M alignment with 4H bias consideration
+
+  **EXECUTION PRIORITY:**
+  1. 4H bias drives overall intraday direction
+  2. 1H provides tactical entry zones and momentum context
+  3. 15M delivers precise execution timing and stop placement
+
   3. Plan A: The Primary Trade Idea
   (This is our A+ setup. We wait patiently for this)
 
@@ -74,7 +111,7 @@ PLANNER_SYSTEM_PROMPT = """
 
   Condition: "Price must first pull back into the Primary Value Zone (X.XXXX - X.XXXX), ideally retesting yesterday's breakout level."
 
-  Trigger: "Execute on a 15-minute chart bullish engulfing candle OR a break and retest of the zone's upper edge, with confirmation that yesterday's momentum is intact."
+  Trigger: "Execute on 15-minute chart confirmation: bullish engulfing candle, break and retest pattern, or momentum continuation signal. Must align with 1H trend and not contradict 4H structure."
 
   Stop Loss (SL): Price (X.XXXX). Justification: (e.g., "Placed 10 pips below the low of the Value Zone, or below yesterday's key support level").
 
@@ -98,7 +135,7 @@ PLANNER_SYSTEM_PROMPT = """
 
   Condition: "If price rallies directly to Major Resistance (X.XXXX) without pulling back and shows signs of rejection, especially if it fails to break yesterday's high."
 
-  Trigger: "Execute on a 1-hour chart bearish pin bar or a 'lower high' formation after the initial test, with confirmation that yesterday's momentum is waning."
+  Trigger: "Execute on 1-hour chart bearish pin bar or 'lower high' formation after initial test. Confirm with 15-minute breakdown pattern or rejection signals. Ensure alignment with higher timeframe resistance."
 
   Stop Loss (SL): Price (X.XXXX). Justification: (e.g., "Placed above the high of the rejection wick, or above yesterday's high if it was tested").
 
