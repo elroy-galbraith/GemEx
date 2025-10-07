@@ -32,22 +32,19 @@ jobs:
     - name: Create output directory
       run: |
         mkdir -p trading_session
+        echo "📁 Output directory created"
         
-    - name: Download previous session artifacts
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        echo "📥 Attempting to download previous session data..."
-        # The Python script will handle downloading previous artifacts via GitHub API
-        # This step ensures the environment is set up correctly
-        
-    - name: Run trading analysis
+    - name: Run trading analysis with session continuity
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_ACTIONS: true
       run: |
+        echo "🚀 Starting trading analysis with previous session continuity..."
+        echo "📥 Previous session data will be automatically downloaded if available..."
         python market_planner.py
         
     - name: Upload trading session artifacts

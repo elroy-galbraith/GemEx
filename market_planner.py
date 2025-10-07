@@ -1657,10 +1657,27 @@ def news_agent(events_text):
     save_to_scratchpad("news_events", notes_dict)
 
 def planner_agent():
-    """Final trading plan using JSON scratchpad notes."""
+    """Final trading plan using JSON scratchpad notes and temporal analysis."""
     scratchpad_path = DATE_OUTPUT_DIR / "scratchpad.json"
     with open(scratchpad_path, "r") as f:
         all_notes = json.load(f)
+    
+    # Load temporal analysis data if available
+    temporal_data = {}
+    if DATA_PACKET_PATH.exists():
+        try:
+            with open(DATA_PACKET_PATH, "r") as f:
+                packet_data = json.load(f)
+                temporal_data = packet_data.get("temporalAnalysis", {})
+        except Exception as e:
+            print(f"Warning: Could not load temporal analysis: {e}")
+    
+    # Combine all data for the planner
+    combined_data = {
+        "current_analysis": all_notes,
+        "temporal_analysis": temporal_data,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
 
     system_inst = """
     **Persona:** You are a senior FX Analyst and Day Trader for a private fund. You specialize in identifying and executing high-probability trades on EURUSD, holding them for several hours to capture the primary directional move of the day. Your analysis is methodical, patient, and avoids short-term market noise.
@@ -1715,7 +1732,7 @@ def planner_agent():
     -   **Execution Note:** A key instruction for the day (e.g., "Patience is paramount. Do not force an entry if the price doesn't pull back to our zone. It's better to miss the trade than to take a bad one").
     """
 
-    final_plan = run_agent([types.Part.from_text(text=json.dumps(all_notes, indent=2))],
+    final_plan = run_agent([types.Part.from_text(text=json.dumps(combined_data, indent=2))],
                            system_instruction=system_inst)
 
     today_str = datetime.now().strftime('%Y%m%d')
