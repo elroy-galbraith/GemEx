@@ -109,7 +109,7 @@ def save_trading_plan(trading_plan: Dict[str, Any], date: str = None) -> None:
             f.write(f"- **Entry Zone**: {trading_plan['entry_zone'][0]:.5f} - {trading_plan['entry_zone'][1]:.5f}\n")
             f.write(f"- **Stop Loss**: {trading_plan.get('stop_loss', 'N/A'):.5f}\n")
             f.write(f"- **Take Profit 1**: {trading_plan.get('take_profit_1', 'N/A'):.5f}\n")
-            f.write(f"- **Take Profit 2**: {trading_plan.get('take_profit_2', 'N/A'):.5f}\n")
+            f.write(f"- **Take Profit 2**: {trading_plan['take_profit_2']:.5f}\n" if 'take_profit_2' in trading_plan and trading_plan['take_profit_2'] is not None else f"- **Take Profit 2**: N/A\n")
             f.write(f"- **Position Size**: {trading_plan.get('position_size_pct', 0.75):.2f}%\n")
             f.write(f"- **Risk/Reward**: {trading_plan.get('risk_reward', 'N/A')}\n\n")
         
