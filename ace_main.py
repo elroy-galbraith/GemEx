@@ -149,9 +149,9 @@ def send_telegram_trading_plan(trading_plan: Dict[str, Any]) -> None:
         if trading_plan.get('bias') != 'neutral' and 'entry_zone' in trading_plan:
             message += f"""
 📍 **Entry**: {trading_plan['entry_zone'][0]:.5f} - {trading_plan['entry_zone'][1]:.5f}
-🛑 **Stop**: {trading_plan.get('stop_loss', 'N/A'):.5f}
-🎯 **TP1**: {trading_plan.get('take_profit_1', 'N/A'):.5f}
-🎯 **TP2**: {trading_plan.get('take_profit_2', 'N/A'):.5f}
+🛑 **Stop**: {trading_plan.get('stop_loss'):.5f}" if isinstance(trading_plan.get('stop_loss'), (int, float)) else "🛑 **Stop**: N/A"
+🎯 **TP1**: {trading_plan.get('take_profit_1'):.5f}" if isinstance(trading_plan.get('take_profit_1'), (int, float)) else "🎯 **TP1**: N/A"
+🎯 **TP2**: {trading_plan.get('take_profit_2'):.5f}" if isinstance(trading_plan.get('take_profit_2'), (int, float)) else "🎯 **TP2**: N/A"
 💰 **Size**: {trading_plan.get('position_size_pct', 0.75):.1f}%
 📊 **R:R**: {trading_plan.get('risk_reward', 'N/A')}
 
