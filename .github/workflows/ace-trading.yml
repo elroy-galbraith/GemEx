@@ -1,0 +1,123 @@
+name: ACE Trading System
+
+on:
+  schedule:
+    # Daily cycle: Run at 1:00 PM UTC (8:00 AM EST / 9:00 AM EDT) - Before NY session
+    - cron: '0 13 * * 1-5'
+    # Weekly cycle: Run at 10:00 PM UTC Friday (5:00 PM EST / 6:00 PM EDT)
+    - cron: '0 22 * * 5'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      cycle:
+        description: 'Which cycle to run'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - both
+
+jobs:
+  ace-trading:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Try to install all dependencies, but continue even if some fail
+        pip install -r requirements.txt --timeout 300 || echo "⚠️ Some dependencies may have failed to install"
+        
+    - name: Create output directories
+      run: |
+        mkdir -p trading_session data weekly_reflections
+        echo "📁 Output directories created"
+        
+    - name: Determine cycle to run
+      id: cycle
+      run: |
+        # Determine which cycle to run based on trigger
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          CYCLE="${{ github.event.inputs.cycle }}"
+        elif [ "$(date +%u)" = "5" ]; then
+          # Friday - run weekly cycle
+          CYCLE="weekly"
+        else
+          # Monday-Thursday - run daily cycle
+          CYCLE="daily"
+        fi
+        echo "cycle=$CYCLE" >> $GITHUB_OUTPUT
+        echo "🔄 Running $CYCLE cycle"
+        
+    - name: Run ACE Daily Cycle
+      if: steps.cycle.outputs.cycle == 'daily' || steps.cycle.outputs.cycle == 'both'
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🚀 Starting ACE Daily Cycle..."
+        # Try integrated version first (with market data)
+        if python ace_integrated.py --cycle daily; then
+          echo "✅ Daily cycle completed successfully"
+        else
+          echo "⚠️ Integrated cycle failed, trying demo mode..."
+          python ace_demo.py --demo daily
+        fi
+        
+    - name: Run ACE Weekly Cycle
+      if: steps.cycle.outputs.cycle == 'weekly' || steps.cycle.outputs.cycle == 'both'
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "📊 Starting ACE Weekly Cycle..."
+        # Try integrated version first (with reflector)
+        if python ace_integrated.py --cycle weekly; then
+          echo "✅ Weekly cycle completed successfully"
+        else
+          echo "⚠️ Integrated cycle failed, trying demo mode..."
+          python ace_demo.py --demo weekly
+        fi
+        
+    - name: Upload ACE artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ace-session-${{ github.run_number }}-${{ steps.cycle.outputs.cycle }}
+        path: |
+          trading_session/
+          data/playbook.json
+          data/playbook_history/
+          weekly_reflections/
+        retention-days: 90
+        
+    - name: Display playbook summary
+      run: |
+        echo "📚 Current Playbook Status:"
+        if [ -f "data/playbook.json" ]; then
+          python -c "
+import json
+with open('data/playbook.json') as f:
+    p = json.load(f)
+print(f\"Version: {p['metadata']['version']}\")
+print(f\"Total Bullets: {p['metadata']['total_bullets']}\")
+print(f\"Last Updated: {p['metadata']['last_updated'][:10]}\")
+          "
+        else
+          echo "⚠️ No playbook found"
+        fi
