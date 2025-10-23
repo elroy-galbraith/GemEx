@@ -632,9 +632,7 @@ def load_trade_logs_for_week(week_ending_date: str = None) -> List[Dict[str, Any
     
     # Get Monday of that week (assuming week_ending_date is Friday)
     # Go back to find Monday
-    days_back = (end_date.weekday() - 0) % 7  # 0 = Monday
-    if days_back == 0 and end_date.weekday() != 0:
-        days_back = 7
+    days_back = end_date.weekday()  # 0 = Monday
     start_date = end_date - timedelta(days=days_back)
     
     weekly_logs = []
