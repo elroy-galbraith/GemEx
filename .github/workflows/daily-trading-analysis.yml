@@ -45,7 +45,7 @@ jobs:
       run: |
         echo "🚀 Starting trading analysis with previous session continuity..."
         echo "📥 Previous session data will be automatically downloaded if available..."
-        python market_planner.py
+        python gemex/market_planner.py
         
     - name: Upload trading session artifacts
       uses: actions/upload-artifact@v4

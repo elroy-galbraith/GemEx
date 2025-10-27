@@ -58,7 +58,7 @@ jobs:
         fi
         
         echo "Starting analysis..."
-        python market_planner.py
+        python gemex/market_planner.py
         
 
         

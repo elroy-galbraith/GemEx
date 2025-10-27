@@ -54,7 +54,7 @@ jobs:
         GITHUB_ACTIONS: true
       run: |
         echo "🔄 Restoring previous ACE state..."
-        python ace_persistence.py || echo "⚠️ Could not restore previous state - starting fresh"
+        python gemex/ace/persistence.py || echo "⚠️ Could not restore previous state - starting fresh"
         
     - name: Determine cycle to run
       id: cycle
@@ -80,7 +80,7 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         echo "🚀 Starting ACE Daily Cycle..."
-        python ace_main.py --cycle daily
+        python gemex/ace/main.py --cycle daily
         
     - name: Run ACE Weekly Cycle
       if: steps.cycle.outputs.cycle == 'weekly' || steps.cycle.outputs.cycle == 'both'
@@ -90,13 +90,13 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         echo "📊 Starting ACE Weekly Cycle..."
-        python ace_main.py --cycle weekly
+        python gemex/ace/main.py --cycle weekly
         
     - name: Create artifact summary
       if: always()
       run: |
         echo "📊 Creating artifact summary..."
-        python -c "from ace_persistence import save_artifact_summary; save_artifact_summary()"
+        python -c "from gemex.ace.persistence import save_artifact_summary; save_artifact_summary()"
         
     - name: Upload ACE artifacts
       uses: actions/upload-artifact@v4
