@@ -44,8 +44,17 @@ jobs:
         
     - name: Create output directories
       run: |
-        mkdir -p trading_session data weekly_reflections
+        mkdir -p trading_session data data/playbook_history weekly_reflections
         echo "📁 Output directories created"
+        
+    - name: Download and restore previous ACE artifacts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_ACTIONS: true
+      run: |
+        echo "🔄 Restoring previous ACE state..."
+        python ace_persistence.py || echo "⚠️ Could not restore previous state - starting fresh"
         
     - name: Determine cycle to run
       id: cycle
@@ -71,13 +80,7 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         echo "🚀 Starting ACE Daily Cycle..."
-        # Try integrated version first (with market data)
-        if python ace_integrated.py --cycle daily; then
-          echo "✅ Daily cycle completed successfully"
-        else
-          echo "⚠️ Integrated cycle failed, trying demo mode..."
-          python ace_demo.py --demo daily
-        fi
+        python ace_main.py --cycle daily
         
     - name: Run ACE Weekly Cycle
       if: steps.cycle.outputs.cycle == 'weekly' || steps.cycle.outputs.cycle == 'both'
@@ -87,16 +90,17 @@ jobs:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         echo "📊 Starting ACE Weekly Cycle..."
-        # Try integrated version first (with reflector)
-        if python ace_integrated.py --cycle weekly; then
-          echo "✅ Weekly cycle completed successfully"
-        else
-          echo "⚠️ Integrated cycle failed, trying demo mode..."
-          python ace_demo.py --demo weekly
-        fi
+        python ace_main.py --cycle weekly
+        
+    - name: Create artifact summary
+      if: always()
+      run: |
+        echo "📊 Creating artifact summary..."
+        python -c "from ace_persistence import save_artifact_summary; save_artifact_summary()"
         
     - name: Upload ACE artifacts
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: ace-session-${{ github.run_number }}-${{ steps.cycle.outputs.cycle }}
         path: |
@@ -104,7 +108,9 @@ jobs:
           data/playbook.json
           data/playbook_history/
           weekly_reflections/
+          artifact_summary.json
         retention-days: 90
+        if-no-files-found: warn
         
     - name: Display playbook summary
       run: |
