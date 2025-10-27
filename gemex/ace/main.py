@@ -208,13 +208,29 @@ def run_daily_cycle() -> Dict[str, Any]:
     
     # Step 4: Run Generator
     print("\n[4/7] Running Generator (Creating Trading Plan)...")
-    trading_plan = run_generator(playbook, market_data)
-    
-    # Add current date if not present
-    if "date" not in trading_plan:
-        trading_plan["date"] = datetime.now().strftime("%Y-%m-%d")
-    
-    save_trading_plan(trading_plan)
+    try:
+        trading_plan = run_generator(playbook, market_data)
+        
+        # Add current date if not present
+        if "date" not in trading_plan:
+            trading_plan["date"] = datetime.now().strftime("%Y-%m-%d")
+        
+        save_trading_plan(trading_plan)
+    except Exception as e:
+        print(f"❌ Error generating plan: {e}")
+        print("⚠️  This may be due to:")
+        print("   - Gemini API safety filters blocking the response")
+        print("   - Network issues or API rate limits")
+        print("   - Invalid market data format")
+        print("   Skipping to next steps with empty plan...")
+        trading_plan = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "bias": "neutral",
+            "confidence": "low",
+            "reasoning": "Plan generation failed - see logs for details",
+            "error": str(e)
+        }
+        save_trading_plan(trading_plan)
     
     # Step 5: Send to Telegram
     print("\n[5/7] Sending Plan to Telegram...")

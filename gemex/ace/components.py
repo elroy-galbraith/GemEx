@@ -255,6 +255,30 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
             }
         )
         
+        # Check for blocked response
+        if not response.parts:
+            # Response was blocked by safety filters
+            finish_reason = getattr(response.candidates[0], 'finish_reason', None) if response.candidates else None
+            safety_ratings = getattr(response.candidates[0], 'safety_ratings', []) if response.candidates else []
+            
+            error_msg = f"Response blocked (finish_reason={finish_reason})"
+            if safety_ratings:
+                blocked_categories = [r.category for r in safety_ratings if r.blocked]
+                if blocked_categories:
+                    error_msg += f" - Blocked categories: {blocked_categories}"
+            
+            print(f"⚠️  {error_msg}")
+            print("⚠️  This is likely due to Gemini's safety filters. Using neutral plan.")
+            
+            return {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "bias": "neutral",
+                "rationale": "Response blocked by safety filters - regenerate with adjusted prompt",
+                "confidence": "low",
+                "playbook_bullets_used": [],
+                "error": error_msg
+            }
+        
         # Parse response
         plan_text = response.text.strip()
         
