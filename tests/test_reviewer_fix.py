@@ -12,8 +12,8 @@ from pathlib import Path
 # Add the project root to Python path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent))
 
-from prompts import REVIEWER_SYSTEM_PROMPT
-from market_planner import call_llm, clean_json_output, configure_gemini
+from gemex.prompts import REVIEWER_SYSTEM_PROMPT
+from gemex.market_planner import call_llm, clean_json_output, configure_gemini
 
 def test_reviewer_with_mock_data():
     """Test the reviewer with mock trading plan and data packet."""

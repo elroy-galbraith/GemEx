@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from market_planner import clean_json_output
+from gemex.market_planner import clean_json_output
 
 def test_json_cleaning():
     """Test the JSON cleaning function with various inputs."""

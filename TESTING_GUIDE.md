@@ -6,7 +6,7 @@ This guide provides comprehensive testing strategies to verify the ACE trading s
 
 ```bash
 # Run automated verification script (recommended)
-./verify_setup.sh
+./scripts/verify_setup.sh
 ```
 
 This script will:
