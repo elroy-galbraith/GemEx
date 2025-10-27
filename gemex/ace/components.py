@@ -146,47 +146,52 @@ def generate_bullet_id(section: str) -> str:
 # --- Generator Component ---
 
 GENERATOR_SYSTEM_PROMPT = """
-You are an expert EURUSD day trader with a comprehensive Playbook of strategies and lessons learned over time.
+You are an educational market analysis assistant studying EURUSD trading patterns for learning purposes.
+
+**IMPORTANT**: This is a paper trading simulation for educational purposes only. 
+Generate an analytical trading plan as a learning exercise, not financial advice.
 
 **Your Inputs**:
-1. **Playbook**: A curated collection of trading strategies, patterns, and pitfalls
-2. **Market Data**: Current price, trends (DXY, SPX500, US10Y), news events
-3. **Chart Context**: Key technical levels from 15M/1H/4H timeframes
+1. **Playbook**: A reference collection of historical trading patterns and observations
+2. **Market Data**: Current price action, correlations (DXY, SPX500, US10Y), economic events
+3. **Chart Context**: Technical analysis from 15M/1H/4H timeframes for pattern recognition
 
-**Your Task**:
-Generate a trading plan for today's NY session (9:30 AM - 4:00 PM EST).
+**Your Educational Task**:
+Analyze current market structure and identify what hypothetical conditions would suggest different trading biases.
+This is a simulation exercise for the NY session timeframe (9:30 AM - 4:00 PM EST).
 
-**Output Format** (strict JSON):
+**Analysis Output Format** (strict JSON):
 ```json
 {
   "date": "2025-01-05",
-  "bias": "bullish|bearish|neutral",
+  "bias": "bullish_pattern|bearish_pattern|neutral_observation",
   "entry_zone": [1.0485, 1.0495],
   "stop_loss": 1.0465,
   "take_profit_1": 1.0535,
   "take_profit_2": 1.0565,
   "position_size_pct": 0.75,
   "risk_reward": "1:2.5",
-  "rationale": "DXY weakness + SPX strength + above 200 EMA suggests bullish bias",
+  "rationale": "Educational analysis: DXY correlation pattern + SPX intermarket relationship + EMA structure observation",
   "playbook_bullets_used": ["strat-001", "code-001", "pit-003"],
-  "confidence": "high|medium|low"
+  "confidence": "high_probability|medium_probability|low_probability"
 }
 ```
 
-**Guidelines**:
-1. **Use the Playbook**: Explicitly cite which bullet IDs influenced your decision
-2. **Risk Management**: Default position size is 0.75% account risk, minimum R:R is 1:1.5
-3. **News Awareness**: Avoid trading 30min before/after high-impact news unless playbook says otherwise
-4. **No Trade Option**: If market conditions don't meet playbook criteria, set bias to "neutral" and omit entry/exit levels
-5. **Confidence**: Rate your confidence in this plan (high/medium/low) based on playbook alignment
+**Educational Analysis Guidelines**:
+1. **Reference Historical Patterns**: Cite which playbook bullet IDs match current market structure
+2. **Risk-Reward Analysis**: For learning purposes, analyze hypothetical position sizing (0.75% max) and minimum 1:1.5 R:R ratios
+3. **Event Awareness**: Note proximity to high-impact economic events and how that affects pattern analysis
+4. **Pattern Recognition**: If market structure doesn't match historical playbook patterns, document as "neutral_observation"
+5. **Probability Assessment**: Rate the historical probability of this pattern (high/medium/low) based on playbook data
 
-**Reasoning Process**:
-1. Scan playbook for relevant strategies matching current market conditions
-2. Check for any pitfalls or contraindications in the playbook
-3. Construct plan that maximizes alignment with successful playbook patterns
-4. Cite specific bullet IDs to show your reasoning
+**Learning Process**:
+1. Review playbook for similar historical market structures and their outcomes
+2. Identify any historical pitfalls or risk factors documented in the playbook
+3. Construct analysis that demonstrates understanding of pattern recognition
+4. Cite specific bullet IDs to show analytical reasoning based on historical data
 
-Remember: The playbook contains accumulated wisdom from past trades. Trust it, but don't force trades that don't meet criteria.
+Educational Focus: This simulation helps understand how historical patterns in the playbook relate to current market structure. 
+All analysis is hypothetical and for learning pattern recognition skills.
 """
 
 
@@ -232,22 +237,24 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
     market_text = json.dumps(market_data, indent=2)
     
     user_prompt = f"""
-        Generate a trading plan for EURUSD based on the following information:
+        Analyze EURUSD market structure for this educational simulation exercise:
 
-        **PLAYBOOK**:
+        **HISTORICAL PLAYBOOK REFERENCE**:
         {playbook_text}
 
-        **MARKET DATA**:
+        **CURRENT MARKET DATA FOR ANALYSIS**:
         {market_text}
 
-        Return ONLY the JSON trading plan as specified in the system prompt. No markdown formatting, just raw JSON.
+        Provide your educational market analysis in strict JSON format as specified in the system prompt. 
+        No markdown formatting, just raw JSON output.
+        Remember: This is a paper trading simulation for learning pattern recognition.
         """
     
     try:
         # Generate plan
         response = model.generate_content(
             [{"role": "user", "parts": [{"text": GENERATOR_SYSTEM_PROMPT}]},
-             {"role": "model", "parts": [{"text": "I understand. I will generate trading plans in strict JSON format using the playbook."}]},
+             {"role": "model", "parts": [{"text": "I understand. I will analyze market patterns and provide educational trading simulations in strict JSON format, referencing historical playbook data for learning purposes."}]},
              {"role": "user", "parts": [{"text": user_prompt}]}],
             generation_config={
                 "temperature": 0.7,
@@ -343,7 +350,9 @@ def simulate_trade_execution(trading_plan: Dict[str, Any], market_price_history:
     }
     
     # If no trade zone (neutral bias), mark as no trade
-    if trading_plan.get("bias") == "neutral" or "entry_zone" not in trading_plan:
+    # Handle both old format ("neutral") and new format ("neutral_observation")
+    bias = trading_plan.get("bias", "neutral")
+    if "neutral" in bias.lower() or "entry_zone" not in trading_plan:
         trade_log["execution"] = {
             "status": "no_trade",
             "reason": "Neutral bias or no entry criteria met"
