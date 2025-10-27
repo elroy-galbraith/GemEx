@@ -227,7 +227,7 @@ cat data/playbook.json | jq '.'
 python tests/test_ace_system.py
 
 # Full system verification
-./verify_setup.sh
+./scripts/verify_setup.sh
 ```
 
 ---
@@ -278,7 +278,7 @@ python tests/test_ace_system.py
 
 If system behavior is unexpected:
 1. Check TESTING_GUIDE.md
-2. Run `./verify_setup.sh`
+2. Run `./scripts/verify_setup.sh`
 3. Review error logs
 4. Check API key configuration
 

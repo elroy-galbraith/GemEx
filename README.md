@@ -5,6 +5,8 @@
 
 GemEx is an advanced, AI-powered forex trading analysis system that combines quantitative market data with large language model (LLM) intelligence to generate comprehensive trading strategies. The system operates under the codename "Viper" and provides institutional-grade market analysis for EURUSD trading.
 
+> **📦 Package Structure Update**: GemEx now uses a professional Python package structure! All code is organized under `gemex/` with subpackages for ACE (`gemex/ace/`) and UI (`gemex/ui/`). Old imports still work via symlinks. See [PYTHON_REORGANIZATION_COMPLETE.md](PYTHON_REORGANIZATION_COMPLETE.md) for details.
+
 ## 🆕 ACE Trading System (Proof of Concept)
 
 **NEW**: GemEx now includes an **ACE (Agentic Context Engineering)** trading system that evolves a comprehensive trading "Playbook" through daily market analysis and weekly reflection cycles. This system maintains an evolving knowledge base that accumulates strategies, patterns, and lessons over time without requiring model weight updates.
@@ -19,23 +21,37 @@ GemEx is an advanced, AI-powered forex trading analysis system that combines qua
 
 ### Quick Start with ACE
 
+**Option 1: Web UI (Recommended for Beginners)**
+```bash
+# Launch the interactive dashboard
+./scripts/launch_ui.sh
+# Or: streamlit run app.py
+```
+
+**Option 2: Command Line**
 ```bash
 # Run daily trading cycle (generates plan and simulates execution)
-python ace_demo.py --demo daily
+python ace_main.py --cycle daily
 
 # Run weekly reflection (analyzes performance and updates playbook)
-python ace_demo.py --demo weekly
-
-# Run both cycles with playbook summary
-python ace_demo.py --demo both
+python ace_main.py --cycle weekly
 
 # Run tests
 python tests/test_ace_components.py
 ```
 
-📖 **For complete ACE documentation, see [ACE_README.md](ACE_README.md)**
+📖 **Documentation:**
+- [ACE_README.md](ACE_README.md) - Complete ACE system documentation
+- [UI_GUIDE.md](UI_GUIDE.md) - Web interface user guide
 
 ## 🚀 Features
+
+### Web Interface (NEW)
+- **📊 Interactive Dashboard**: Streamlit-based web UI for easy system management
+- **🎛️ One-Click Controls**: Run daily/weekly cycles with a single button
+- **📈 Visual Analytics**: Charts, performance metrics, and playbook browser
+- **🔍 Session Explorer**: Browse historical trading sessions and analysis
+- **📱 Responsive Design**: Clean, modern interface optimized for desktop use
 
 ### Core Capabilities
 - **Multi-Timeframe Analysis**: Daily, 4-hour, and 1-hour market structure analysis
@@ -462,6 +478,7 @@ Trigger the workflow manually anytime:
 - **Artifacts** store trading session files
 - **Repository commits** track analysis history
 
+
 ### 6. Troubleshooting
 - **Check Actions logs** for detailed error messages
 - **Verify secrets** are correctly set
@@ -469,3 +486,58 @@ Trigger the workflow manually anytime:
 - **Check Telegram bot** is active and accessible
 
 The workflow will automatically run your analysis daily and deliver results directly to your Telegram, making it perfect for automated trading analysis!
+
+## 📚 Documentation
+
+### Core Documentation
+- **[README.md](README.md)** - This file, main project overview
+- **[ACE_README.md](ACE_README.md)** - Complete ACE system documentation
+- **[LICENSE](LICENSE)** - Apache 2.0 license
+
+### User Guides
+- **[UI_GUIDE.md](UI_GUIDE.md)** - Comprehensive web interface guide
+- **[UI_QUICK_REFERENCE.md](UI_QUICK_REFERENCE.md)** - Quick UI command reference
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Package structure quick reference
+
+### Reorganization Documentation
+- **[PYTHON_REORGANIZATION_COMPLETE.md](PYTHON_REORGANIZATION_COMPLETE.md)** - Migration guide
+- **[PYTHON_REORGANIZATION_VISUAL.md](PYTHON_REORGANIZATION_VISUAL.md)** - Visual summary
+- **[PYTHON_ORGANIZATION_PLAN.md](PYTHON_ORGANIZATION_PLAN.md)** - Original plan
+- **[REORGANIZATION_COMPLETE.md](REORGANIZATION_COMPLETE.md)** - Scripts reorganization
+
+### Development & Testing
+- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Testing procedures
+- **[PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md)** - Production deployment
+- **[SIMULATION_MODE_GUIDE.md](SIMULATION_MODE_GUIDE.md)** - Simulation mode
+- **[VALIDATION_REPORT.md](VALIDATION_REPORT.md)** - System validation
+
+### Scripts Documentation
+- **[scripts/README.md](scripts/README.md)** - All shell scripts documentation
+
+## 🗂️ Project Structure
+
+```
+gemex/                          # Main Python package
+├── ace/                        # ACE system subpackage
+│   ├── components.py           # Core ACE components
+│   ├── main.py                 # Daily/weekly cycle runner
+│   ├── integrated.py           # Integrated ACE functions
+│   ├── persistence.py          # Artifact persistence
+│   └── demo.py                 # Demo mode
+├── ui/                         # Web interface
+│   └── app.py                  # Streamlit dashboard
+├── market_planner.py           # Market analysis engine
+├── prompts.py                  # AI system prompts
+└── config.py                   # Configuration constants
+
+scripts/                        # Shell scripts
+├── launch_ui.sh               # Launch web UI
+├── run_daily.sh               # Run daily cycle
+└── ...
+
+tests/                          # Test suite
+data/                          # Playbook storage
+trading_session/               # Generated plans
+weekly_reflections/            # Weekly analysis
+```
+

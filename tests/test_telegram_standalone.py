@@ -10,7 +10,7 @@ from datetime import datetime
 
 # Import shared constants
 try:
-    from telegram_constants import VISUAL_INDICATORS, PSYCHOLOGY_TIPS
+    from gemex.config import VISUAL_INDICATORS, PSYCHOLOGY_TIPS
 except ImportError:
     # Fallback constants for standalone testing if shared file is not available
     VISUAL_INDICATORS = {
