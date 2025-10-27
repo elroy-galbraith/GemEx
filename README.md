@@ -5,6 +5,36 @@
 
 GemEx is an advanced, AI-powered forex trading analysis system that combines quantitative market data with large language model (LLM) intelligence to generate comprehensive trading strategies. The system operates under the codename "Viper" and provides institutional-grade market analysis for EURUSD trading.
 
+## 🆕 ACE Trading System (Proof of Concept)
+
+**NEW**: GemEx now includes an **ACE (Agentic Context Engineering)** trading system that evolves a comprehensive trading "Playbook" through daily market analysis and weekly reflection cycles. This system maintains an evolving knowledge base that accumulates strategies, patterns, and lessons over time without requiring model weight updates.
+
+### Key Features of ACE System
+
+- **🧠 Evolving Playbook**: Structured knowledge base that grows and improves over time
+- **📊 Daily Cycle**: Generates trading plans using playbook + market data
+- **🔄 Weekly Reflection**: Analyzes performance and updates playbook automatically
+- **🎯 Simulated Execution**: Paper trading with outcome tracking
+- **📈 Continuous Learning**: System improves from experience without retraining
+
+### Quick Start with ACE
+
+```bash
+# Run daily trading cycle (generates plan and simulates execution)
+python ace_demo.py --demo daily
+
+# Run weekly reflection (analyzes performance and updates playbook)
+python ace_demo.py --demo weekly
+
+# Run both cycles with playbook summary
+python ace_demo.py --demo both
+
+# Run tests
+python tests/test_ace_components.py
+```
+
+📖 **For complete ACE documentation, see [ACE_README.md](ACE_README.md)**
+
 ## 🚀 Features
 
 ### Core Capabilities

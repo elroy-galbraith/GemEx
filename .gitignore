@@ -209,3 +209,7 @@ __marimo__/
 
 # Trading session
 trading_session/
+
+# ACE system runtime data
+data/
+weekly_reflections/

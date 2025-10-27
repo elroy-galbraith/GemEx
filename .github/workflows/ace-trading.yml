@@ -1,0 +1,129 @@
+name: ACE Trading System
+
+on:
+  schedule:
+    # Daily cycle: Run at 1:00 PM UTC (8:00 AM EST / 9:00 AM EDT) - Before NY session
+    - cron: '0 13 * * 1-5'
+    # Weekly cycle: Run at 10:00 PM UTC Friday (5:00 PM EST / 6:00 PM EDT)
+    - cron: '0 22 * * 5'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      cycle:
+        description: 'Which cycle to run'
+        required: true
+        default: 'daily'
+        type: choice
+        options:
+          - daily
+          - weekly
+          - both
+
+jobs:
+  ace-trading:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      actions: read
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Try to install all dependencies, but continue even if some fail
+        pip install -r requirements.txt --timeout 300 || echo "⚠️ Some dependencies may have failed to install"
+        
+    - name: Create output directories
+      run: |
+        mkdir -p trading_session data data/playbook_history weekly_reflections
+        echo "📁 Output directories created"
+        
+    - name: Download and restore previous ACE artifacts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_ACTIONS: true
+      run: |
+        echo "🔄 Restoring previous ACE state..."
+        python ace_persistence.py || echo "⚠️ Could not restore previous state - starting fresh"
+        
+    - name: Determine cycle to run
+      id: cycle
+      run: |
+        # Determine which cycle to run based on trigger
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          CYCLE="${{ github.event.inputs.cycle }}"
+        elif [ "$(date +%u)" = "5" ]; then
+          # Friday - run weekly cycle
+          CYCLE="weekly"
+        else
+          # Monday-Thursday - run daily cycle
+          CYCLE="daily"
+        fi
+        echo "cycle=$CYCLE" >> $GITHUB_OUTPUT
+        echo "🔄 Running $CYCLE cycle"
+        
+    - name: Run ACE Daily Cycle
+      if: steps.cycle.outputs.cycle == 'daily' || steps.cycle.outputs.cycle == 'both'
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "🚀 Starting ACE Daily Cycle..."
+        python ace_main.py --cycle daily
+        
+    - name: Run ACE Weekly Cycle
+      if: steps.cycle.outputs.cycle == 'weekly' || steps.cycle.outputs.cycle == 'both'
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        echo "📊 Starting ACE Weekly Cycle..."
+        python ace_main.py --cycle weekly
+        
+    - name: Create artifact summary
+      if: always()
+      run: |
+        echo "📊 Creating artifact summary..."
+        python -c "from ace_persistence import save_artifact_summary; save_artifact_summary()"
+        
+    - name: Upload ACE artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ace-session-${{ github.run_number }}-${{ steps.cycle.outputs.cycle }}
+        path: |
+          trading_session/
+          data/playbook.json
+          data/playbook_history/
+          weekly_reflections/
+          artifact_summary.json
+        retention-days: 90
+        if-no-files-found: warn
+        
+    - name: Display playbook summary
+      run: |
+        echo "📚 Current Playbook Status:"
+        if [ -f "data/playbook.json" ]; then
+          python -c "
+            import json
+            with open('data/playbook.json') as f:
+                p = json.load(f)
+            print(f\"Version: {p['metadata']['version']}\")
+            print(f\"Total Bullets: {p['metadata']['total_bullets']}\")
+            print(f\"Last Updated: {p['metadata']['last_updated'][:10]}\")
+          "
+        else
+          echo "⚠️ No playbook found"
+        fi
