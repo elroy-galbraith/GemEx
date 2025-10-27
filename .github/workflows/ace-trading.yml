@@ -111,12 +111,12 @@ jobs:
         echo "📚 Current Playbook Status:"
         if [ -f "data/playbook.json" ]; then
           python -c "
-import json
-with open('data/playbook.json') as f:
-    p = json.load(f)
-print(f\"Version: {p['metadata']['version']}\")
-print(f\"Total Bullets: {p['metadata']['total_bullets']}\")
-print(f\"Last Updated: {p['metadata']['last_updated'][:10]}\")
+            import json
+            with open('data/playbook.json') as f:
+                p = json.load(f)
+            print(f\"Version: {p['metadata']['version']}\")
+            print(f\"Total Bullets: {p['metadata']['total_bullets']}\")
+            print(f\"Last Updated: {p['metadata']['last_updated'][:10]}\")
           "
         else
           echo "⚠️ No playbook found"
