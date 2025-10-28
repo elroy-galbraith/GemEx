@@ -289,13 +289,42 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
         # Parse response
         plan_text = response.text.strip()
         
+        # Save raw response for debugging
+        debug_dir = Path("trading_session") / "debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        debug_file = debug_dir / f"raw_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        try:
+            with open(debug_file, 'w') as f:
+                f.write(plan_text)
+            print(f"📝 Raw response saved to: {debug_file}")
+        except Exception as debug_e:
+            print(f"⚠️  Could not save debug file: {debug_e}")
+        
         # Clean JSON if wrapped in markdown
         if plan_text.startswith("```"):
-            plan_text = plan_text.split("```")[1]
-            if plan_text.startswith("json"):
-                plan_text = plan_text[4:]
+            # Split by ``` and get the content between markers
+            parts = plan_text.split("```")
+            if len(parts) >= 2:
+                plan_text = parts[1]
+                # Remove language identifier if present (json, JSON, etc.)
+                if plan_text.strip().startswith("json"):
+                    plan_text = plan_text.strip()[4:].strip()
+                elif plan_text.strip().startswith("JSON"):
+                    plan_text = plan_text.strip()[4:].strip()
         
-        plan = json.loads(plan_text)
+        # Remove any trailing markdown markers
+        if plan_text.endswith("```"):
+            plan_text = plan_text[:-3].strip()
+        
+        # Try to parse JSON
+        try:
+            plan = json.loads(plan_text)
+        except json.JSONDecodeError as json_err:
+            print(f"❌ JSON parsing failed: {json_err}")
+            print(f"📄 First 500 chars of response: {plan_text[:500]}")
+            print(f"📄 Last 200 chars of response: {plan_text[-200:]}")
+            raise  # Re-raise to be caught by outer exception handler
         
         # Update playbook usage
         if "playbook_bullets_used" in plan:
@@ -304,6 +333,18 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
         
         return plan
         
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON Decode Error: {e}")
+        print(f"⚠️  The AI model returned malformed JSON. This is saved in the debug folder for inspection.")
+        # Return neutral plan with detailed error
+        return {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "bias": "neutral",
+            "rationale": f"JSON parsing error: {str(e)}. The AI response was malformed. Check debug logs.",
+            "confidence": "low",
+            "playbook_bullets_used": [],
+            "error": f"JSONDecodeError: {str(e)}"
+        }
     except Exception as e:
         print(f"❌ Error generating plan: {e}")
         # Return neutral plan
@@ -312,7 +353,8 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
             "bias": "neutral",
             "rationale": f"Error generating plan: {e}",
             "confidence": "low",
-            "playbook_bullets_used": []
+            "playbook_bullets_used": [],
+            "error": str(e)
         }
 
 
@@ -530,15 +572,53 @@ Provide insights and suggested playbook updates as JSON.
         
         reflection_text = response.text.strip()
         
+        # Save raw response for debugging
+        debug_dir = Path("trading_session") / "debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        debug_file = debug_dir / f"reflection_raw_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        
+        try:
+            with open(debug_file, 'w') as f:
+                f.write(reflection_text)
+            print(f"📝 Raw reflection saved to: {debug_file}")
+        except Exception as debug_e:
+            print(f"⚠️  Could not save debug file: {debug_e}")
+        
         # Clean JSON if wrapped in markdown
         if reflection_text.startswith("```"):
-            reflection_text = reflection_text.split("```")[1]
-            if reflection_text.startswith("json"):
-                reflection_text = reflection_text[4:]
+            parts = reflection_text.split("```")
+            if len(parts) >= 2:
+                reflection_text = parts[1]
+                if reflection_text.strip().startswith("json"):
+                    reflection_text = reflection_text.strip()[4:].strip()
+                elif reflection_text.strip().startswith("JSON"):
+                    reflection_text = reflection_text.strip()[4:].strip()
         
-        reflection = json.loads(reflection_text)
+        # Remove any trailing markdown markers
+        if reflection_text.endswith("```"):
+            reflection_text = reflection_text[:-3].strip()
+        
+        # Try to parse JSON
+        try:
+            reflection = json.loads(reflection_text)
+        except json.JSONDecodeError as json_err:
+            print(f"❌ JSON parsing failed: {json_err}")
+            print(f"📄 First 500 chars of response: {reflection_text[:500]}")
+            print(f"📄 Last 200 chars of response: {reflection_text[-200:]}")
+            raise  # Re-raise to be caught by outer exception handler
+        
         return reflection
         
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON Decode Error in reflection: {e}")
+        print(f"⚠️  The AI model returned malformed JSON. Check debug folder for inspection.")
+        return {
+            "week_ending": datetime.now().strftime("%Y-%m-%d"),
+            "summary": {"total_trades": len(weekly_logs), "error": f"JSONDecodeError: {str(e)}"},
+            "insights": [],
+            "recommendations": ["Error parsing reflection - AI returned malformed JSON"],
+            "market_regime_notes": "Analysis incomplete due to parsing error"
+        }
     except Exception as e:
         print(f"❌ Error generating reflection: {e}")
         # Return minimal reflection
