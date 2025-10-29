@@ -38,13 +38,15 @@ from gemex.ace.components import (
     load_playbook,
     save_playbook,
     run_generator,
-    simulate_trade_execution,
     save_trade_log,
     run_reflector,
     save_reflection,
     run_curator,
     load_trade_logs_for_week
 )
+
+# Import realistic simulation (uses actual price data instead of hash-based)
+from gemex.ace.realistic_simulation import simulate_trade_with_real_data as simulate_trade_execution
 
 
 def ace_daily_cycle_integrated():

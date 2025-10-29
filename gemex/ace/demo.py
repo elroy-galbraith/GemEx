@@ -18,7 +18,6 @@ from gemex.ace.components import (
     initialize_playbook,
     save_playbook,
     load_playbook,
-    simulate_trade_execution,
     save_trade_log,
     run_curator,
     generate_bullet_id,
@@ -26,6 +25,9 @@ from gemex.ace.components import (
     TRADING_SESSIONS_DIR,
     WEEKLY_REFLECTIONS_DIR
 )
+
+# Import realistic simulation
+from gemex.ace.realistic_simulation import simulate_trade_with_real_data as simulate_trade_execution
 
 
 def create_mock_market_data(date: str = None) -> dict:
