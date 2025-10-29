@@ -16,8 +16,27 @@ GemEx is an advanced, AI-powered forex trading analysis system that combines qua
 - **🧠 Evolving Playbook**: Structured knowledge base that grows and improves over time
 - **📊 Daily Cycle**: Generates trading plans using playbook + market data
 - **🔄 Weekly Reflection**: Analyzes performance and updates playbook automatically
-- **🎯 Simulated Execution**: Paper trading with outcome tracking
+- **🎯 Realistic Simulation**: Paper trading validated with actual historical price data from Yahoo Finance
 - **📈 Continuous Learning**: System improves from experience without retraining
+
+### 🆕 Realistic Simulation Feature
+
+The ACE system now uses **actual historical price data** to validate trading plans instead of random outcomes:
+
+**How It Works:**
+- ✅ Fetches real 15-minute EURUSD price data from Yahoo Finance
+- ✅ Checks if price actually touched your entry zone
+- ✅ Validates which hit first: stop loss or take profit
+- ✅ Records exact entry/exit times and actual P&L
+- ✅ Falls back gracefully when data unavailable (weekends/holidays)
+
+**Benefits:**
+- More realistic performance metrics without broker connection
+- Validates AI-generated entry zones and stop losses
+- Backtesting capability for strategy development
+- Builds confidence before live trading
+
+See **[REALISTIC_SIMULATION_UPGRADE.md](REALISTIC_SIMULATION_UPGRADE.md)** for complete documentation.
 
 ### Quick Start with ACE
 
@@ -489,30 +508,28 @@ The workflow will automatically run your analysis daily and deliver results dire
 
 ## 📚 Documentation
 
-### Core Documentation
-- **[README.md](README.md)** - This file, main project overview
-- **[ACE_README.md](ACE_README.md)** - Complete ACE system documentation
+### Main Documentation
+- **[README.md](README.md)** - This file, complete project overview
+- **[ACE_README.md](ACE_README.md)** - Complete ACE trading system documentation
 - **[LICENSE](LICENSE)** - Apache 2.0 license
 
-### User Guides
-- **[UI_GUIDE.md](UI_GUIDE.md)** - Comprehensive web interface guide
-- **[UI_QUICK_REFERENCE.md](UI_QUICK_REFERENCE.md)** - Quick UI command reference
+### Feature Guides
+- **[UI_GUIDE.md](UI_GUIDE.md)** - Web interface user guide
+- **[UI_QUICK_REFERENCE.md](UI_QUICK_REFERENCE.md)** - Quick UI commands
+- **[REALISTIC_SIMULATION_UPGRADE.md](REALISTIC_SIMULATION_UPGRADE.md)** - Realistic simulation documentation
+- **[TRADING_JOURNAL_TEMPLATE.md](TRADING_JOURNAL_TEMPLATE.md)** - Trading journal template
+
+### Development & Deployment
+- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Testing procedures and guidelines
+- **[PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md)** - Production deployment guide
+- **[VALIDATION_REPORT.md](VALIDATION_REPORT.md)** - System validation report
+- **[REORGANIZATION_COMPLETE.md](REORGANIZATION_COMPLETE.md)** - Scripts reorganization summary
+- **[PYTHON_REORGANIZATION_COMPLETE.md](PYTHON_REORGANIZATION_COMPLETE.md)** - Package structure migration guide
+- **[PYTHON_REORGANIZATION_VISUAL.md](PYTHON_REORGANIZATION_VISUAL.md)** - Visual package structure guide
 - **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Package structure quick reference
 
-### Reorganization Documentation
-- **[PYTHON_REORGANIZATION_COMPLETE.md](PYTHON_REORGANIZATION_COMPLETE.md)** - Migration guide
-- **[PYTHON_REORGANIZATION_VISUAL.md](PYTHON_REORGANIZATION_VISUAL.md)** - Visual summary
-- **[PYTHON_ORGANIZATION_PLAN.md](PYTHON_ORGANIZATION_PLAN.md)** - Original plan
-- **[REORGANIZATION_COMPLETE.md](REORGANIZATION_COMPLETE.md)** - Scripts reorganization
-
-### Development & Testing
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Testing procedures
-- **[PRODUCTION_GUIDE.md](PRODUCTION_GUIDE.md)** - Production deployment
-- **[SIMULATION_MODE_GUIDE.md](SIMULATION_MODE_GUIDE.md)** - Simulation mode
-- **[VALIDATION_REPORT.md](VALIDATION_REPORT.md)** - System validation
-
-### Scripts Documentation
-- **[scripts/README.md](scripts/README.md)** - All shell scripts documentation
+### Scripts
+- **[scripts/README.md](scripts/README.md)** - Shell scripts documentation
 
 ## 🗂️ Project Structure
 
