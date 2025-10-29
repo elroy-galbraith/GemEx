@@ -43,6 +43,16 @@ test_cases = [
         "name": "Extra trailing text",
         "input": '```json\n{"bias": "bullish", "confidence": "high"}\n```\n\nHere is some extra text',
         "should_succeed": True  # Should extract valid JSON part
+    },
+    {
+        "name": "Empty response",
+        "input": '',
+        "should_succeed": False
+    },
+    {
+        "name": "Only markdown markers",
+        "input": '```\n```',
+        "should_succeed": False
     }
 ]
 
@@ -53,15 +63,26 @@ def clean_json_response(text: str) -> str:
     """
     plan_text = text.strip()
     
+    # Check if empty
+    if not plan_text:
+        raise ValueError("Empty response")
+    
     # Clean JSON if wrapped in markdown
     if plan_text.startswith("```"):
         parts = plan_text.split("```")
-        if len(parts) >= 2:
-            plan_text = parts[1]
-            if plan_text.strip().startswith("json"):
-                plan_text = plan_text.strip()[4:].strip()
-            elif plan_text.strip().startswith("JSON"):
-                plan_text = plan_text.strip()[4:].strip()
+        if len(parts) >= 3:  # Should have opening ```, content, and closing ```
+            plan_text = parts[1].strip()
+        elif len(parts) >= 2:  # Has opening ``` and content, maybe no closing
+            plan_text = parts[1].strip()
+        else:
+            # Just remove the opening ```
+            plan_text = plan_text[3:].strip()
+        
+        # Remove language identifier if present
+        if plan_text.startswith("json"):
+            plan_text = plan_text[4:].strip()
+        elif plan_text.startswith("JSON"):
+            plan_text = plan_text[4:].strip()
     
     # Remove any trailing markdown markers
     if plan_text.endswith("```"):
@@ -92,13 +113,13 @@ def test_json_parsing():
                 print(f"  ❌ FAIL - Should have failed but succeeded: {result}")
                 failed += 1
                 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, ValueError) as e:
             if not test['should_succeed']:
                 print(f"  ✅ PASS - Correctly failed: {e}")
                 passed += 1
             else:
                 print(f"  ❌ FAIL - Should have succeeded but failed: {e}")
-                print(f"     Cleaned text: {clean_json_response(test['input'])}")
+                print(f"     Cleaned text: {clean_json_response(test['input']) if test['input'] else '(empty)'}")
                 failed += 1
         except Exception as e:
             print(f"  ❌ UNEXPECTED ERROR: {e}")

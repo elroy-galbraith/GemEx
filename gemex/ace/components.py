@@ -315,19 +315,39 @@ def run_generator(playbook: Dict[str, Any], market_data: Dict[str, Any]) -> Dict
         except Exception as debug_e:
             print(f"⚠️  Could not save debug file: {debug_e}")
         
+        # Check if response is empty
+        if not plan_text:
+            print("⚠️  Empty response from Gemini API")
+            return {
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "bias": "neutral",
+                "rationale": "Empty response from AI model",
+                "confidence": "low",
+                "playbook_bullets_used": [],
+                "error": "Empty response"
+            }
+        
         # Clean JSON if wrapped in markdown
         if plan_text.startswith("```"):
             # Split by ``` and get the content between markers
             parts = plan_text.split("```")
-            if len(parts) >= 2:
-                plan_text = parts[1]
-                # Remove language identifier if present (json, JSON, etc.)
-                if plan_text.strip().startswith("json"):
-                    plan_text = plan_text.strip()[4:].strip()
-                elif plan_text.strip().startswith("JSON"):
-                    plan_text = plan_text.strip()[4:].strip()
+            if len(parts) >= 3:  # Should have opening ```, content, and closing ```
+                plan_text = parts[1].strip()
+            elif len(parts) >= 2:  # Has opening ``` and content, maybe no closing
+                plan_text = parts[1].strip()
+            else:
+                # Just remove the opening ```
+                plan_text = plan_text[3:].strip()
+            
+            # Remove language identifier if present (json, JSON, etc.)
+            if plan_text.startswith("json"):
+                plan_text = plan_text[4:].strip()
+            elif plan_text.startswith("JSON"):
+                plan_text = plan_text[4:].strip()
         
         # Remove any trailing markdown markers
+        if plan_text.endswith("```"):
+            plan_text = plan_text[:-3].strip()
         if plan_text.endswith("```"):
             plan_text = plan_text[:-3].strip()
         
@@ -615,15 +635,33 @@ Output: Strict JSON format as specified in the research protocol.
         except Exception as debug_e:
             print(f"⚠️  Could not save debug file: {debug_e}")
         
+        # Check if response is empty
+        if not reflection_text:
+            print("⚠️  Empty response from Gemini API for reflection")
+            return {
+                "week_ending": datetime.now().strftime("%Y-%m-%d"),
+                "summary": {"total_trades": len(weekly_logs), "error": "Empty response"},
+                "insights": [],
+                "recommendations": ["Empty response from AI - review manually"],
+                "market_regime_notes": "Analysis incomplete"
+            }
+        
         # Clean JSON if wrapped in markdown
         if reflection_text.startswith("```"):
             parts = reflection_text.split("```")
-            if len(parts) >= 2:
-                reflection_text = parts[1]
-                if reflection_text.strip().startswith("json"):
-                    reflection_text = reflection_text.strip()[4:].strip()
-                elif reflection_text.strip().startswith("JSON"):
-                    reflection_text = reflection_text.strip()[4:].strip()
+            if len(parts) >= 3:  # Should have opening ```, content, and closing ```
+                reflection_text = parts[1].strip()
+            elif len(parts) >= 2:  # Has opening ``` and content, maybe no closing
+                reflection_text = parts[1].strip()
+            else:
+                # Just remove the opening ```
+                reflection_text = reflection_text[3:].strip()
+            
+            # Remove language identifier if present
+            if reflection_text.startswith("json"):
+                reflection_text = reflection_text[4:].strip()
+            elif reflection_text.startswith("JSON"):
+                reflection_text = reflection_text[4:].strip()
         
         # Remove any trailing markdown markers
         if reflection_text.endswith("```"):
